@@ -145,13 +145,6 @@ def index():
     )
 
 
-@app.route('/c7data')
-def capture_c7data():
-    return 'c7data'
-
-@app.route('/chdata')
-def check_chdata():
-    return 'chdata'
 
 @app.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
@@ -214,6 +207,7 @@ def manage_servicearrangements():
     return render_template('arrangements.html', arrangements=arrangements)
 
 
-
-
+@app.route('/preparecontract')
+def prepare_contract():
+    return 'Prepare merge template here'
     
