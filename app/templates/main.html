@@ -3,17 +3,75 @@
 {% block head %}
     {{ super() }}
 {% endblock %}
+
 {% block content %}
 
-    <h1>Welcome to the CS Contract Generator</h1>
-    <p>Service Standards</p>
-    <form action="/servicestandards" method="post">
-        <label>SSN</label>
-        <input name ="ssn" type="text" />
-        <label>Service Description</label>
-        <input name ="service-description" type="text" />
-        <input type="submit">
+<h1>Service Standards</h1>
 
-    </form>
+<form action="/servicestandards" method="post">
+    <button type="button" class="add-btn" id="add-row-btn">Add Row</button>
+    <input type="submit" class="submit-btn" id="submit-btn" value="Submit">
+    <table id="standards-table">
+        <thead>
+            <tr>
+                <th id="service-col1">SSN</th>
+                <th id="service-col2">Service Description</th>
+                <th id="service-col3">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+           {% for row in standards %}
+                <tr>
+                    <td>
+                        <input type="hidden" name="id" value="{{ row.id }}">
+                        <input name="ssn" type="text" size="8" value="{{ row.ssn }}">
+                    </td>
+                    <td>
+                        <textarea name="service-description" rows="3" cols="100" class="multi-line">{{ row.description }}</textarea>     
+                    </td>
+                    <td>
+                        <form action="/delete/{{ row.id }}" method="post" style="display:inline">
+                            <button type="submit">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+</form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tableBody = document.querySelector('#standards-table tbody');
+        const addBtn = document.getElementById('add-row-btn');
+
+        addBtn.addEventListener('click', () => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <input type="hidden" name="id" value="">
+                    <input name="ssn" type="text" size="8" value="">
+                </td>
+                <td>
+                    <textarea name="service-description" type="text" rows="3" cols="100" class="multi-line">
+                    </textarea>     
+                </td>
+                <td>                    
+                    <button type="submit">Delete</button>                    
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+
+        // Delegate remove functionality
+        tableBody.addEventListener('click', (e) => {
+            if (e.target && e.target.classList.contains('remove-btn')) {
+                const row = e.target.closest('tr');
+                row.remove();
+            }
+        });
+    });
+</script>
 
 {% endblock %}

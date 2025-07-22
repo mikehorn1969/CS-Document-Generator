@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+
+<!--
+    TODO
+    1. remove any inline scripts
+    2. format to CS house style
+-->
+
+<html>
+<head>
+    <link rel="stylesheet" type= "text/css" href="{{ url_for('static',filename='styles/style.css') }}"/>
+    <title>Change Specialists - Contract Management</title>
+</head>
+<body>
+    <div>
+        <h2>Clients</h2>
+        <form method="POST">
+            <select name="company">
+                <option value="">-- Select Client --</option>
+                {% for name in client_names %}
+                    <option value="{{ name }}" {% if name == selected_company %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" name="btCompany">Next</button>
+        </form>
+
+        {% if selected_company %}
+            
+            <table border="1" cellpadding="4" name="clientdata">
+                <tr>
+                    {% for field in client_fields %}
+                        <th>{{ field }}</th>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    {% for field in client_fields %}
+                        <td>{{ client_record[field] }}</td>
+                    {% endfor %}
+                </tr>
+            </table>
+         
+        
+            <h2>Contact</h2>
+            <form method="POST">
+                <select name="contact">
+                    <option value="">-- Select Contact --</option>
+                    {% for name in contact_names %}
+                        <option value="{{ name }}" {% if name == selected_contact %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="btContact">Next</button>
+            </form>
+        {% endif %}
+
+        {% if selected_contact %}
+
+            <table border="1" cellpadding="4" name="contactdata">
+                <tr>
+                    {% for field in contact_fields %}
+                        <th>{{ field }}</th>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    {% for field in contact_fields %}
+                        <td>{{ contact_record[field] }}</td>
+                    {% endfor %}
+                </tr>
+            </table>
+
+            <h2>Requirement</h2>
+            <form method="POST">
+                <select name="requirement">
+                    <option value="">-- Select Requirement --</option>
+                    {% for name in requirements %}
+                        <option value="{{ name }}" {% if name == selected_requirement %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="btRequirement">Next</button>
+            </form>
+        {% endif %}
+
+        {% if selected_requirement %}
+
+            <table border="1" cellpadding="4" name="requirementdata">
+                <tr>
+                    {% for field in req_fields %}
+                        <th>{{ field }}</th>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    {% for field in req_fields %}
+                        <td>{{ req_record[field] }}</td>
+                    {% endfor %}
+                </tr>
+            </table>    
+
+            <h2>Candidate</h2>
+            <form method="POST">
+                <select name="candidate">
+                    <option value="">-- Select Candidate --</option>
+                    {% for name in candidate_names %}
+                        <option value="{{ name }}" {% if name == selected_candidate %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="btCandidate">Next</button>
+            </form>
+        {% endif %}
+
+        {% if selected_candidate %}
+
+        <table border="1" cellpadding="4" name="candidatedata">
+                <tr>
+                    {% for field in candidate_fields %}
+                        <th>{{ field }}</th>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    {% for field in candidate_fields %}
+                        <td>{{ candidate_record[field] }}</td>
+                    {% endfor %}
+                </tr>
+            </table>    
+
+        {% endif %}
+    </div>
+
+    <div>
+
+        <h2>CH Search</h2>
+        <form method="POST">
+            <input type="text" name="ch_no" placeholder="Enter company number" value="{{ ch_no }}">
+            <button type="submit" name="btCHLookup">Lookup</button>
+        </form>
+        {% if error %}
+            <p style="color: red;">{{ error }}</p>
+        {% endif %}
+        {% if ch_record %}
+            <h3>Company Details</h3>
+            <table border="1" cellpadding="4">
+                <tr>
+                    {% for field in ch_fields %}
+                        <th>{{ field.replace('_', ' ').title() }}</th>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    {% for field in ch_fields %}
+                        <td>{{ ch_record[field] }}</td>
+                    {% endfor %}
+                </tr>
+            </table>
+        {% endif %}
+    </div>
+
+    <div>
+        
+
+
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Service Arrangements{% endblock %}
+{% block content %}
+
+<h2>Service Arrangements by Day</h2>
+
+<form method="post">
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Day</th>
+                <th>Default Service Period</th>
+                <th>At Service Base</th>
+                <th>At Client Location</th>
+                <th>At Other Location</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                {% set row = arrangements.get(day) %}
+                <tr>
+                    <td><strong>{{ day }}</strong></td>
+                    <td><input type="text" name="{{ day }}_default" value="{{ row.defaultserviceperiod if row else '' }}"></td>
+                    <td><input type="text" name="{{ day }}_base" value="{{ row.atservicebase if row else '' }}"></td>
+                    <td><input type="text" name="{{ day }}_client" value="{{ row.atclientlocation if row else '' }}"></td>
+                    <td><input type="text" name="{{ day }}_other" value="{{ row.atotherlocation if row else '' }}"></td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <button type="submit">Save Changes</button>
+</form>
+
+{% endblock %}
