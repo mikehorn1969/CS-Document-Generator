@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}CS Contract Generator v2{% endblock %}
+{% block head %}
+    {{ super() }}
+{% endblock %}
+{% block content %}
+
+    <h1>Welcome to the CS Contract Generator</h1>
+    <p>Service Standards</p>
+    <form action="/servicestandards" method="post">
+        <label>SSN</label>
+        <input name ="ssn" type="text" />
+        <label>Service Description</label>
+        <input name ="service-description" type="text" />
+        <input type="submit">
+
+    </form>
+
+{% endblock %}
