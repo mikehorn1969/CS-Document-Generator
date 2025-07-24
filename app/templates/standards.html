@@ -8,6 +8,13 @@
 
 <h1>Service Standards</h1>
 
+{% if session['sid'] %}
+    <div>
+        <strong>Service ID:</strong> {{ session['sid'] }}
+    </div>
+    <br>
+{% endif %}
+
 <form action="/servicestandards" method="post">
     <button type="button" class="add-btn" id="add-row-btn">Add Row</button>
     <input type="submit" class="submit-btn" id="submit-btn" value="Submit">

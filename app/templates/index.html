@@ -8,162 +8,44 @@
 
 {% block content %}
 
-<h1>Service Standards</h1>
-    <div id="colleague">
-        
-        <form method="POST" id="datainput">
-            <label for="company" class="datalabel">Client</label>
-            <select name="company" id="company">
-                <option value="">-- Select Client --</option>
-                {% for name in client_names %}
-                    <option value="{{ name }}" {% if name == selected_company %}selected{% endif %}>{{ name }}</option>
-                {% endfor %}
-            </select>
-            <br>
-            <button type="submit" name="btCompany">Next</button>
+<h1>Home</h1>
+
+<!-- Service ID -->
+{% if session['sid'] %}
+    <div>
+        <form action="clearsession" method="get">
+            <strong>Service ID:</strong> {{ session['sid'] }} 
+            <input type="submit" value="RESET" class="reset-btn"/>
         </form>
-
-        {% if selected_company %}
-            
-            <table cellpadding="4" name="clientdata" class="datagrid">
-                <tr>
-                    {% for field in client_fields %}
-                        <th>{{ field }}</th>
-                    {% endfor %}
-                </tr>
-                <tr>
-                    {% for field in client_fields %}
-                        <td>{{ client_record[field] }}</td>
-                    {% endfor %}
-                </tr>
-            </table>
-         
-            <form method="POST" id="datainput">
-                <label for="contact">Client Contact</label>
-                <select name="contact" id="contact">
-                    <option value="">-- Select Contact --</option>
-                    {% for name in contact_names %}
-                        <option value="{{ name }}" {% if name == selected_contact %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
-                <br>
-                <button type="submit" name="btContact">Next</button>
-            </form>
-        {% endif %}
-
-        {% if selected_contact %}
-
-            <table cellpadding="4" name="contactdata"  class="datagrid">
-                <tr>
-                    {% for field in contact_fields %}
-                        <th>{{ field }}</th>
-                    {% endfor %}
-                </tr>
-                <tr>
-                    {% for field in contact_fields %}
-                        <td>{{ contact_record[field] }}</td>
-                    {% endfor %}
-                </tr>
-            </table>
-
-            <form method="POST" id="datainput">
-                <label for="requirement">Requirement</label>
-                <select name="requirement" id="requirement">
-                    <option value="">-- Select Requirement --</option>
-                    {% for name in requirements %}
-                        <option value="{{ name }}" {% if name == selected_requirement %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
-                <br>
-                <button type="submit" name="btRequirement">Next</button>
-            </form>
-        {% endif %}
-
-        {% if selected_requirement %}
-
-            <table cellpadding="4" name="requirementdata" class="datagrid">
-                <tr>
-                    {% for field in req_fields %}
-                        <th>{{ field }}</th>
-                    {% endfor %}
-                </tr>
-                <tr>
-                    {% for field in req_fields %}
-                        <td>{{ req_record[field] }}</td>
-                    {% endfor %}
-                </tr>
-            </table>    
-
-            <form method="POST" id="datainput">
-                <label for="candidate">Candidate</label>
-                <select name="candidate" id="candidate">
-                    <option value="">-- Select Candidate --</option>
-                    {% for name in candidate_names %}
-                        <option value="{{ name }}" {% if name == selected_candidate %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
-                <br>
-                <button type="submit" name="btCandidate" class="submit-btn">Next</button>
-            </form>
-        {% endif %}
-
-        {% if selected_candidate %}
-
-        <table cellpadding="4" name="candidatedata" class="datagrid">
-            <tr>
-                {% for field in candidate_fields %}
-                    <th>{{ field }}</th>
-                {% endfor %}
-            </tr>
-            <tr>
-                {% for field in candidate_fields %}
-                    <td>{{ candidate_record[field] }}</td>
-                {% endfor %}
-            </tr>
-        </table>    
-
-        <div> 
-            <form action="servicestandards">
-                <input type="submit" value="Service Standards" class="submit-btn"/>
-            </form>
-            <br>
-            <form action="servicearrangements">
-                <input type="submit" value="Service Arrangements" class="submit-btn"/>
-            </form>
-            <br>
-            <form action="preparecontract">
-                <input type="submit" value="Prepare contract" class="add-btn"/>
-            </form>
-        </div>
-        {% endif %}
-
     </div>
+    <br>
+{% else %}
+<div>
+    <form action="{{ url_for('save_sid') }}" method="post">
+        <label for="sid-input"><strong>Service ID:</strong></label>
+        <input type="text" id="sid-input" name="sid" class="sid-input"/>    
+        <input type="submit" value="Set" class="submit-btn"/>
+    </form>
+</div>
+{% endif %}
+<br>
 
-    <!-- <div>
-
-        <h2>CH Search</h2>
-        <form method="POST">
-            <input type="text" name="ch_no" placeholder="Enter company number" value="{{ ch_no }}">
-            <button type="submit" name="btCHLookup">Lookup</button>
-        </form>
-        {% if error %}
-            <p style="color: red;">{{ error }}</p>
-        {% endif %}
-        {% if ch_record %}
-            <h3>Company Details</h3>
-            <table cellpadding="4"  class="datagrid">
-                <tr>
-                    {% for field in ch_fields %}
-                        <th>{{ field.replace('_', ' ').title() }}</th>
-                    {% endfor %}
-                </tr>
-                <tr>
-                    {% for field in ch_fields %}
-                        <td>{{ ch_record[field] }}</td>
-                    {% endfor %}
-                </tr>
-            </table>
-        {% endif %}
-    </div> -->
+<div> 
+    <form action="colleaguedata" method="get">
+        <input type="submit" value="Colleague Data" class="submit-btn"/>
+    </form>
+    <br>
+    <form action="servicestandards" method="get">
+        <input type="submit" value="Service Standards" class="submit-btn"/>
+    </form>
+    <br>
+    <form action="servicearrangements" method="get">
+        <input type="submit" value="Service Arrangements" class="submit-btn"/>
+    </form>
+    <br>
+    <form action="preparecontract" method="get">
+        <input type="submit" value="Prepare contract" class="add-btn"/>
+    </form>
+</div>
 
 {% endblock %}

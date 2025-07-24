@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+
+{% extends "base.html" %}
+{% block title %}CS Contract Generator v2{% endblock %}
+{% block head %}
+    {{ super() }}
+{% endblock %}
+
+{% block content %}
+
+<h1>Colleague Data</h1>
+
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 32px;">
+    <!-- Left Column: Inputs and Buttons -->
+    <div>
+        {% if session['sid'] %}
+            <div>
+                <strong>Service ID:</strong> {{ session['sid'] }}
+            </div>
+            <br>
+        {% endif %}
+
+        <form method="POST" id="datainput">
+            <label for="company" class="datalabel">Client</label>
+            <select name="company" id="company">
+                <option value="">-- Select Client --</option>
+                {% for name in client_names %}
+                    <option value="{{ name }}" {% if name == selected_company %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <br>
+            <button type="submit" name="btCompany">Next</button>
+        </form>
+
+        {% if selected_company %}
+            <form method="POST" id="datainput">
+                <label for="contact">Client Contact</label>
+                <select name="contact" id="contact">
+                    <option value="">-- Select Contact --</option>
+                    {% for name in contact_names %}
+                        <option value="{{ name }}" {% if name == selected_contact %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <br>
+                <button type="submit" name="btContact">Next</button>
+            </form>
+        {% endif %}
+
+        {% if selected_contact %}
+            <form method="POST" id="datainput">
+                <label for="requirement">Requirement</label>
+                <select name="requirement" id="requirement">
+                    <option value="">-- Select Requirement --</option>
+                    {% for name in requirements %}
+                        <option value="{{ name }}" {% if name == selected_requirement %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <br>
+                <button type="submit" name="btRequirement">Next</button>
+            </form>
+        {% endif %}
+
+        {% if selected_requirement %}
+            <form method="POST" id="datainput">
+                <label for="candidate">Candidate</label>
+                <select name="candidate" id="candidate">
+                    <option value="">-- Select Candidate --</option>
+                    {% for name in candidate_names %}
+                        <option value="{{ name }}" {% if name == selected_candidate %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <br>
+                <button type="submit" name="btCandidate" class="submit-btn">Next</button>
+            </form>
+        {% endif %}
+
+        <form action="/" method="get">
+            <input type="submit" value="Back" class="submit-btn"/>
+        </form>
+    </div>
+
+    <!-- Right Column: ServiceContract Data -->
+    <div>
+        {% if session['sid'] %}
+            {% set contracts = ServiceContract.query.filter_by(sid=session['sid']).all() %}
+            {% if contracts %}
+                <h2>Service Contract Data</h2>
+                <table class="datagrid">
+                    <tr>
+                        <th>ID</th>
+                        <th>Service Name</th>
+                        <th>Description</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Company Name</th>
+                        <th>Contact Name</th>
+                        <!-- Add more columns as needed -->
+                    </tr>
+                    {% for contract in contracts %}
+                    <tr>
+                        <td>{{ contract.id }}</td>
+                        <td>{{ contract.servicename }}</td>
+                        <td>{{ contract.description }}</td>
+                        <td>{{ contract.startdate }}</td>
+                        <td>{{ contract.enddate }}</td>
+                        <td>{{ contract.companyname }}</td>
+                        <td>{{ contract.contactname }}</td>
+                        <!-- Add more fields as needed -->
+                    </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <p>No ServiceContract data found for Service ID {{ session['sid'] }}.</p>
+            {% endif %}
+        {% else %}
+            <p>Please set a Service ID to view contract data.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

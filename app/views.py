@@ -1,12 +1,38 @@
 from app import app, db
 from flask import Flask, render_template, request, redirect, url_for, session
-from app.models import ServiceStandard, ServiceArrangement
+from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
 from app.c7query import getC7Clients, getContactsByCompany, getC7Requirements, getC7RequirementCandidates
 from app.chquery import getCHRecord
 from app.classes import Company, Contact, Requirement, Candidate
 
+
 @app.route('/', methods=["GET", "POST"])
 def index():
+    return render_template('index.html', sid=session.get('sid', ''))
+
+
+@app.route('/setsid', methods=["GET", "POST"])
+def save_sid():
+    if request.method == 'POST':
+        sid = request.form.get('sid', '').strip()
+        if sid:
+            session['sid'] = sid  # Save Service ID to session
+            
+        else:
+            error = "Please enter a valid Service ID."
+            
+    # For GET requests, render a simple form or redirect
+    return redirect(url_for('index'))
+
+
+@app.route('/clearsession', methods=["GET"])
+def clear_session():
+    session.clear()
+    return redirect(url_for('index'))
+
+
+@app.route('/colleaguedata', methods=["GET", "POST"])
+def colleaguedata():
     
     clients = getC7Clients()
 
@@ -24,7 +50,7 @@ def index():
     req_record = []
 
     candidate_names = []
-    candidate_fields = ['candidateId', 'candidateName', 'companyNumber']
+    candidate_fields = ['candidateName', 'companyNumber', ]
     candidate_record = []
 
     ch_record = None
@@ -40,48 +66,61 @@ def index():
             selected_company = request.form.get("company")
             session['selected_company'] = selected_company
             session['selected_contact'] = ''
-            return redirect(url_for('index'))
+            print(f"Selected company: {selected_company}, session sid: {session['sid']}")
 
+            # save/update company in the database
+            try:
+                # Find client data from C7 API
+                client_data = next((client for client in clients if client["CompanyName"] == selected_company), None)
+                if client_data:
+                    # Try to find existing company in DB
+                    company = ContractModel.query.filter_by(sid=session['sid']).first()
+                    if not company:
+                        # Create new company record
+                        company = ContractModel(
+                        sid=session['sid'],    
+                        companyname=client_data.get("CompanyName", ""),
+                        companyaddress=client_data.get("CompanyAddress", ""),
+                        companyemail=client_data.get("CompanyEmail", ""),
+                        companyphone=client_data.get("CompanyPhone", ""),
+                        companyregistrationnumber=client_data.get("CompanyNumber", "")
+                        )
+                        db.session.add(company)
+                    else:
+                        # Update existing record
+                        company.companyaddress = client_data.get("CompanyAddress", "")
+                        company.companyemail = client_data.get("CompanyEmail", "")
+                        company.companyphone = client_data.get("CompanyPhone", "")
+                        company.companyregistrationnumber = client_data.get("CompanyNumber", "")
+                        
+                    db.session.commit()
+            except Exception as e:
+                error = str(e)
+
+            
         if 'btContact' in request.form:
             selected_contact = request.form.get('contact')
             session['selected_contact'] = selected_contact
             session['selected_requirement'] = ''
-            return redirect(url_for('index'))
+            return redirect(url_for('colleaguedata'))
         
         if 'btRequirement' in request.form:
             selected_requirement = request.form.get('requirement')
             session['selected_requirement'] = selected_requirement
             session['selected_candidate'] = ''
-            return redirect(url_for('index'))
+            return redirect(url_for('colleaguedata'))
         
         if 'btCandidate' in request.form:
             selected_candidate = request.form.get('candidate')
             session['selected_candidate'] = selected_candidate
-            return redirect(url_for('index'))
+            return redirect(url_for('colleaguedata'))
         
-        if 'btCHLookup' in request.form:            
-            ch_no = request.form.get('ch_no', '').strip()
-            if ch_no:
-                try:
-                    result = getCHRecord(ch_no)
-                    ch_record = {k: result.get(k,'') for k in ch_fields}
-                except Exception as e:
-                    error = str(e)
-            else:
-                error = "Please enter a company number."
-
     # Only show client details and contacts if a company is selected
     if selected_company:
         contacts = getContactsByCompany(selected_company)
         contact_names = [contact.get("ContactName") for contact in contacts]
 
-        try:
-            result = Company.find_by("companyname", selected_company)
-            client_record = {k: result.__getattribute__(k) for k in client_fields}
-        except Exception as e:
-            error = str(e)
-
-
+        
     # Only show contact details and requirements once a contact has been selected
     if selected_contact:
         requirements = getC7Requirements(selected_company, selected_contact)
@@ -120,9 +159,16 @@ def index():
         except Exception as e:
             error = str(e)
 
+    contracts = []
+    if 'sid' in session:
+        contracts = ContractModel.query.filter_by(sid=session['sid']).all()
+        if contracts:
+            selected_company = contracts[0].companyname
+            selected_contact = contracts[0].contactname
+            
 
     return render_template(
-        'index.html',
+        'colleague.html',
         client_names=client_names,
         selected_company=selected_company,
         contact_names=contact_names,
@@ -141,13 +187,17 @@ def index():
         req_fields=req_fields,
         req_record=req_record,
         candidate_fields=candidate_fields,
-        candidate_record=candidate_record
-    )
+        candidate_record=candidate_record,
+        contracts=contracts    
+        )
 
 
 
 @app.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
+    from app.models import ServiceStandard
+    standards = ServiceStandard.query.filter_by(sid=session.get('sid')).all()
+
     if request.method == 'POST':
         ids = request.form.getlist('id')
         ssns = request.form.getlist('ssn')
@@ -171,9 +221,8 @@ def set_servicestandards():
         db.session.commit()
         return redirect(url_for('set_servicestandards'))
     
-    # Query all rows to view on form
-    standards = ServiceStandard.query.all()
-    return render_template('main.html', standards=standards)
+
+    return render_template('standards.html', standards=standards)
 
 
 @app.route('/delete/<int:id>', methods=['POST'])
@@ -210,4 +259,4 @@ def manage_servicearrangements():
 @app.route('/preparecontract')
 def prepare_contract():
     return 'Prepare merge template here'
-    
+

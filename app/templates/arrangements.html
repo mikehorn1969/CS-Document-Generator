@@ -4,6 +4,13 @@
 
 <h2>Service Arrangements by Day</h2>
 
+{% if session['sid'] %}
+    <div>
+        <strong>Service ID:</strong> {{ session['sid'] }}
+    </div>
+    <br>
+{% endif %}
+
 <form method="post">
     <table border="1">
         <thead>

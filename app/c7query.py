@@ -1,6 +1,6 @@
 # c7query.py - Colleague 7 API queries
 
-import requests
+import requests, string
 from app.classes import Company, Contact, Config, Requirement, Candidate
 from app.helper import loadConfig
 import re
@@ -318,9 +318,9 @@ def getC7Requirements(company_name,contact_name):
         requirements = []
         for item in response_json:
 
-            # ignore dead requirements
+            """ # ignore dead requirements
             if item.get("statusCode") in notStatus:
-                continue
+                continue """
 
             RequirementId = item.get("requirementId", "")
             CompanyName = item.get("companyName", "")
@@ -328,15 +328,15 @@ def getC7Requirements(company_name,contact_name):
             Description = item.get("entityDescription", "")
             JobTitle = item.get("jobTitle", "")
 
-            new_requirement = Requirement(RequirementId, CompanyName, ContactName, Description, JobTitle)
+            myDesc = f"{RequirementId} - {Description}"
 
-            displayDesc = f"{RequirementId} - {Description}"
+            new_requirement = Requirement(RequirementId, CompanyName, ContactName, Description, JobTitle)
 
             requirements.append({
                 "RequirementId": RequirementId,
                 "CompanyName": CompanyName,
                 "ContactName": ContactName,
-                "Description": displayDesc,
+                "Description": myDesc,
                 "JobTitle": JobTitle
             })
 
@@ -373,7 +373,7 @@ def getC7RequirementCandidates(requirementId):
         for item in response_json:
             CandidateId = item.get("CandidateId", "")
             Name = str(item.get("Name", ""))
-            Name = Name.split(":")[0]
+            #Name = Name.split(":")[0]
             
             # create a new Company instance
             new_candidate = Candidate(CandidateId, Name)
@@ -389,6 +389,110 @@ def getC7RequirementCandidates(requirementId):
         return e
 
 
+def getC7candidate(service_id):
+    
+    if Config.find_by_name("C7 Key") is None:
+        loadConfig()
+
+    subscription_key = Config.find_by_name("C7 Key")
+    user_id = Config.find_by_name("C7 Userid")
+
+    try:
+
+        SEARCH_TERM = service_id  # <- what you're matching against in surname
+
+        search_base = "https://coll7openapi.azure-api.net/api/Candidate/Search"
+        get_base = "https://coll7openapi.azure-api.net/api/Candidate/Get"
+
+        headers = {
+            'Ocp-Apim-Subscription-Key': subscription_key,
+            'Accept': 'application/json'
+        }
+
+        matched_candidates = []
+
+        for letter in string.ascii_uppercase:
+            search_params = {
+                'UserId': user_id,
+                'Surname': letter
+            }
+
+            search_response = requests.get(search_base, headers=headers, params=search_params)
+
+            if search_response.status_code != 200:
+                print(f"Search failed for '{letter}': {search_response.status_code}")
+                continue
+
+            search_results = search_response.json()
+
+            for candidate in search_results:
+                candidate_id = candidate.get('CandidateId')
+                if not candidate_id:
+                    continue
+
+                get_params = {
+                    'UserId': user_id,
+                    'CandidateId': candidate_id
+                }
+
+                get_response = requests.get(get_base, headers=headers, params=get_params)
+
+                if get_response.status_code == 200:
+                    detailed = get_response.json()
+                    surname = detailed.get('Surname', '').lower()
+
+                    if SEARCH_TERM in surname:
+                        print(f"✅ Match found: {surname} (ID: {candidate_id})")
+                        matched_candidates.append(detailed)
+                    else:
+                        print(f"Failed to get CandidateId {candidate_id}: {get_response.status_code}")
+
+                print(f"\n🔍 Found {len(matched_candidates)} candidates matching '{SEARCH_TERM}' in surname.")
+
+
+        #candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={letter} HTTP/1.1"
+
+        # yields candidateIds
+
+        exprience_url = f"https://coll7openapi.azure-api.net/api/Candidate/GetExperience?UserId={user_id}&CandidateId={candidate_id} HTTP/1.1
+
+        # yields placementCompanyName, placementJobTitle
+
+        requirement_url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&JobTitle={job_title}"
+
+        # yields contactId, companyId
+
+        company_url = f"https://coll7openapi.azure-api.net/api/Company/Get?UserId={user_id}&CompanyId={companyId}"
+
+        contact_url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contactId}"
+
+        hdr ={
+        # Request headers
+        'Cache-Control': 'no-cache',
+        'Ocp-Apim-Subscription-Key': subscription_key,
+        }
+
+        response = requests.get(url, headers=hdr)
+
+        # Parse JSON
+        response_json = response.json()
+        
+        # Extract desired fields
+        #  Candidatename, address
+        RawAddress = (response_json.get("AddressLine1") or "") + ", " + (response_json.get("AddressLine2") or "") + ", " + (response_json.get("AddressLine3") or "") + ", " + (response_json.get("City") or "") + ", " + (response_json.get("Postcode") or "")
+         CandidateAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
+
+        result = {
+            " CandidateName": response_json.get(" CandidateName"),
+            " CandidateAddress":  CandidateAddress
+        }
+
+        return result
+
+    except Exception as e:
+        print(e)
+
+
 if __name__ == '__main__':
     
     requirement_id = 260
@@ -397,3 +501,5 @@ if __name__ == '__main__':
     
     for reqfile in result:
         print(f"{reqfile.get('Name')} {reqfile.get('CandidateId')}")
+
+

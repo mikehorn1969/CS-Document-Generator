@@ -50,6 +50,14 @@ th, td {
     border: none;
     cursor: pointer;
 }
+.reset-btn {
+    margin-bottom: 10px;
+    padding: 6px 12px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
 
 #service-col1 {
     width: 10%;
