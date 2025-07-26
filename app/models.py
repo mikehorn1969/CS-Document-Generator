@@ -49,6 +49,16 @@ class ServiceContract(db.Model):
     charges = db.Column(Numeric(10,2))  # Charges and payment terms
     chargecurrency = db.Column(db.String(3),default='GBP')  # ISO 4217 currency code
     requirementid = db.Column(db.Integer)
+    candidateid = db.Column(db.Integer)
+    placementid = db.Column(db.Integer) 
+    candidatename = db.Column(db.String(100))
+    candidateaddress = db.Column(db.String(255))
+    candidateemail = db.Column(db.String(100))
+    candidatephone = db.Column(db.String(50))
+    candidateltdname = db.Column(db.String(100))
+    candidateltdregno = db.Column(db.String(50))
+
+    
     
 
 

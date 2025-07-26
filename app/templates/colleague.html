@@ -10,97 +10,42 @@
 
 <h1>Colleague Data</h1>
 
-<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 32px;">
+<div style="display: grid; grid-template-columns: 1fr 3fr; gap: 32px;">
     <!-- Left Column: Inputs and Buttons -->
     <div>
         {% if session['sid'] %}
-            <div>
-                <strong>Service ID:</strong> {{ session['sid'] }}
-            </div>
-            <br>
-        {% endif %}
+            <p><strong>Service ID:</strong> {{ session['sid'] }}<p>
+            
+            <form action="/" method="get">
+                <input type="submit" value="Save" name="btSave" class="submit-btn"/>
+            </form>
+        {% else %}
+            <p>Please set a Service ID to view or edit data.</p>
 
-        <form method="POST" id="datainput">
-            <label for="company" class="datalabel">Client</label>
-            <select name="company" id="company">
-                <option value="">-- Select Client --</option>
-                {% for name in client_names %}
-                    <option value="{{ name }}" {% if name == selected_company %} selected {% endif %}>{{ name }}</option>
-                {% endfor %}
-            </select>
-            <br>
-            <button type="submit" name="btCompany">Next</button>
-        </form>
-
-        {% if selected_company %}
-            <form method="POST" id="datainput">
-                <label for="contact">Client Contact</label>
-                <select name="contact" id="contact">
-                    <option value="">-- Select Contact --</option>
-                    {% for name in contact_names %}
-                        <option value="{{ name }}" {% if name == selected_contact %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
-                <br>
-                <button type="submit" name="btContact">Next</button>
+            <form action="/" method="get">
+                <input type="submit" value="Back" name="btBack" class="submit-btn"/>
             </form>
         {% endif %}
-
-        {% if selected_contact %}
-            <form method="POST" id="datainput">
-                <label for="requirement">Requirement</label>
-                <select name="requirement" id="requirement">
-                    <option value="">-- Select Requirement --</option>
-                    {% for name in requirements %}
-                        <option value="{{ name }}" {% if name == selected_requirement %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
-                <br>
-                <button type="submit" name="btRequirement">Next</button>
-            </form>
-        {% endif %}
-
-        {% if selected_requirement %}
-            <form method="POST" id="datainput">
-                <label for="candidate">Candidate</label>
-                <select name="candidate" id="candidate">
-                    <option value="">-- Select Candidate --</option>
-                    {% for name in candidate_names %}
-                        <option value="{{ name }}" {% if name == selected_candidate %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
-                <br>
-                <button type="submit" name="btCandidate" class="submit-btn">Next</button>
-            </form>
-        {% endif %}
-
-        <form action="/" method="get">
-            <input type="submit" value="Back" class="submit-btn"/>
-        </form>
     </div>
 
     <!-- Right Column: ServiceContract Data -->
     <div>
         {% if session['sid'] %}            
-            {% if contracts %}
+            {% if contractdata %}
                 <h2>Service Contract Data</h2>
-                {% for contract in contracts %}
+                {% for line in contractdata %}
                     <textarea readonly rows="10" cols="80" class="datagrid">
-Service ID: {{ contract.sid }}
-Service Name: {{ contract.servicename }}
-Company Name: {{ contract.companyname }}
-Company Address: {{ contract.companyaddress }}
-Company Email: {{ contract.companyemail }}
-Company Phone: {{ contract.companyphone }}
-Company Registration Number: {{ contract.companyregistrationnumber }}
+Service ID: {{ line.sid }}
+Service Name: {{ line.servicename }}
+Company Name: {{ line.companyname }}
+Company Address: {{ line.companyaddress }}
+Company Email: {{ line.companyemail }}
+Company Phone: {{ line.companyphone }}
+Company Registration Number: {{ line.companyregistrationnumber }}
                     </textarea>
                     <br>
                 {% endfor %}
-            {% else %}
-                <p>No data found for Service ID {{ session['sid'] }}.</p>
             {% endif %}
-        {% else %}
-            <p>Please set a Service ID to view contract data.</p>
         {% endif %}
     </div>
 </div>

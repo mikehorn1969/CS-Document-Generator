@@ -1,7 +1,8 @@
 from app import app, db
 from flask import Flask, render_template, request, redirect, url_for, session
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import getC7Clients, getContactsByCompany, getC7Requirements, getC7RequirementCandidates
+from app.c7query import getC7Clients, getContactsByCompany, getC7Requirements, getC7RequirementCandidates, getC7candidate
+
 from app.chquery import getCHRecord
 from app.classes import Company, Contact, Requirement, Candidate
 
@@ -34,164 +35,41 @@ def clear_session():
 @app.route('/colleaguedata', methods=["GET", "POST"])
 def colleaguedata():
     
-    clients = getC7Clients()
-
-    client_names = [client["CompanyName"] for client in clients]
-    client_fields = ['companyname', 'address', 'emailaddress', 'phone', 'companyNumber']
-    client_record = []
-
-
-    contact_names = [] 
-    contact_fields = ['name', 'title', 'address', 'emailaddress', 'phone']
-    contact_record = []
-
-    req_names = []
-    req_fields = ['description', 'jobtitle']
-    req_record = []
-
-    candidate_names = []
-    candidate_fields = ['candidateName', 'companyNumber', ]
-    candidate_record = []
-
-    ch_record = None
-    ch_no = ""
-    ch_fields = ['company_number', 'company_name', 'company_status']
-    selected_company = session.get('selected_company', '')
-    selected_contact = session.get('selected_contact', '')
-    selected_requirement = session.get('selected_requirement', '')
-    selected_candidate = session.get('selected_candidate', '')
-
+    contractdata = {}
+    
+    if 'sid' in session:
+        contractdata = getC7candidate(session.get('sid', ''))
+    
     if request.method == "POST":
-        if 'btCompany' in request.form:
-            selected_company = request.form.get("company")
-            session['selected_company'] = selected_company
-            session['selected_contact'] = ''
-            print(f"Selected company: {selected_company}, session sid: {session['sid']}")
-
-            # save/update company in the database
+        if 'btSave' in request.form:
             try:
-                # Find client data from C7 API
-                client_data = next((client for client in clients if client["CompanyName"] == selected_company), None)
-                if client_data:
-                    # Try to find existing company in DB
-                    company = ContractModel.query.filter_by(sid=session['sid']).first()
-                    if not company:
-                        # Create new company record
-                        company = ContractModel(
+                # Try to find existing company in DB
+                contract = ContractModel.query.filter_by(sid=session['sid']).first()
+                if not contract:
+                    # Create new company record
+                    contract = ContractModel(
                         sid=session['sid'],    
-                        companyname=client_data.get("CompanyName", ""),
-                        companyaddress=client_data.get("CompanyAddress", ""),
-                        companyemail=client_data.get("CompanyEmail", ""),
-                        companyphone=client_data.get("CompanyPhone", ""),
-                        companyregistrationnumber=client_data.get("CompanyNumber", "")
+                        companyname=contractdata.get("CompanyName", ""),
+                        companyaddress=contractdata.get("CompanyAddress", ""),
+                        companyemail=contractdata.get("CompanyEmail", ""),
+                        companyphone=contractdata.get("CompanyPhone", ""),
+                        companyregistrationnumber=contractdata.get("CompanyNumber", "")
                         )
-                        db.session.add(company)
-                    else:
-                        # Update existing record
-                        company.companyaddress = client_data.get("CompanyAddress", "")
-                        company.companyemail = client_data.get("CompanyEmail", "")
-                        company.companyphone = client_data.get("CompanyPhone", "")
-                        company.companyregistrationnumber = client_data.get("CompanyNumber", "")
-                        
-                    db.session.commit()
+                    db.session.add(contract)
+                else:
+                    # Update existing record
+                    contract.companyaddress = contractdata.get("CompanyAddress", "")
+                    contract.companyemail = contractdata.get("CompanyEmail", "")
+                    contract.companyphone = contractdata.get("CompanyPhone", "")
+                    contract.companyregistrationnumber = contractdata.get("CompanyNumber", "")
+                    
+                db.session.commit()
             except Exception as e:
                 error = str(e)
-
-            
-        if 'btContact' in request.form:
-            selected_contact = request.form.get('contact')
-            session['selected_contact'] = selected_contact
-            session['selected_requirement'] = ''
-            return redirect(url_for('colleaguedata'))
         
-        if 'btRequirement' in request.form:
-            selected_requirement = request.form.get('requirement')
-            session['selected_requirement'] = selected_requirement
-            session['selected_candidate'] = ''
-            return redirect(url_for('colleaguedata'))
-        
-        if 'btCandidate' in request.form:
-            selected_candidate = request.form.get('candidate')
-            session['selected_candidate'] = selected_candidate
-            return redirect(url_for('colleaguedata'))
-        
-    # Only show client details and contacts if a company is selected
-    if selected_company:
-        contacts = getContactsByCompany(selected_company)
-        contact_names = [contact.get("ContactName") for contact in contacts]
-
-        
-    # Only show contact details and requirements once a contact has been selected
-    if selected_contact:
-        requirements = getC7Requirements(selected_company, selected_contact)
-        req_names = [requirement.get("Description") for requirement in requirements]
-
-        try:
-            result = Contact.find_by("name", selected_contact)            
-            contact_record = {k: result.__getattribute__(k) for k in contact_fields}
-        except Exception as e:
-            error = str(e)
-
-
-    # Only show candidates once a requirement has been selected
-    if selected_requirement:
-        id_part = selected_requirement.split(" - ",1)[0]
-        candidates = getC7RequirementCandidates(id_part)
-        candidate_names = [candidate.get("Name") for candidate in candidates]
-
-        try:
-            req_description = (selected_requirement,"-")[0]
-            req_description = req_description.lstrip('0123456789- ')
-
-            result = Requirement.find_by("description", req_description)            
-            req_record = {k: result.__getattribute__(k) for k in req_fields}
-        except Exception as e:
-            error = str(e)
-
-
-    # Only show candidates once a requirement has been selected
-    if selected_candidate:
-        candidate_name = selected_candidate
-
-        try:
-            result = Candidate.find_by("candidateName", candidate_name)            
-            candidate_record = {k: result.__getattribute__(k) for k in candidate_fields}
-        except Exception as e:
-            error = str(e)
-
-    contracts = []
-    if 'sid' in session:
-        contracts = ContractModel.query.filter_by(sid=session['sid']).all()
-        if contracts:
-            selected_company = contracts[0].companyname
-            selected_contact = contracts[0].contactname
-            
-
     return render_template(
-        'colleague.html',
-        client_names=client_names,
-        selected_company=selected_company,
-        contact_names=contact_names,
-        selected_contact=selected_contact,
-        requirements=req_names,
-        selected_requirement=selected_requirement,
-        candidate_names=candidate_names,
-        selected_candidate=selected_candidate,
-        ch_record=ch_record,
-        ch_no=ch_no,
-        ch_fields=ch_fields,
-        client_fields=client_fields,
-        client_record=client_record,
-        contact_record=contact_record,
-        contact_fields=contact_fields,
-        req_fields=req_fields,
-        req_record=req_record,
-        candidate_fields=candidate_fields,
-        candidate_record=candidate_record,
-        contracts=contracts    
-        )
-
-
+        'colleague.html', contractdata=contractdata)
+        
 
 @app.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
