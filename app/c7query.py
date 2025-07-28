@@ -4,6 +4,7 @@ import requests, string
 from app.classes import Company, Contact, Config, Requirement, Candidate
 from app.helper import loadConfig
 import re
+from flask import session 
 
 
 def getC7Company(company_id):
@@ -440,13 +441,17 @@ def getC7candidate(service_id):
                 
                 for experience in experience_results:
                     
-                    placement_id = experience.get('placementId', 0)                    
+                    experience_placement_id = experience.get('placementId', 0)                    
                     
-                    if placement_id == 0:
+                    if experience_placement_id == 0:
                         continue
                     
                     job_title = experience.get('placementJobTitle', '')
                     company_name = experience.get('placementCompanyName', '')
+
+                    # debugging
+                    #if "bellrock" not in company_name.lower():
+                    #    continue    
                     
                     requirement_url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&JobTitle={job_title}"
                     requirements = requests.get(requirement_url, headers=headers)
@@ -454,46 +459,55 @@ def getC7candidate(service_id):
                     if requirements.status_code != 200:
                         continue
                     
-                    requirement_result = candidate_experience.json()
-                    experience_placement_id = experience.get('placementId', 0)
+                    requirement_result = requirements.json()                    
                     
                     for requirement in requirement_result:
                         
                         requirment_placement_id = requirement.get('MostRecentPlacementId', 0)
                         
-                        if experience_placement_id == requirment_placement_id:
+                        if requirment_placement_id == experience_placement_id:
                         
-                            companyId = requirement.get('CompanyId', '')
+                            companyId = requirement.get('companyId', '')
                             company_url = f"https://coll7openapi.azure-api.net/api/Company/Get?UserId={user_id}&CompanyId={companyId}"
                             company_response = requests.get(company_url, headers=headers)
                         
                             if company_response.status_code == 200:
-                        
-                                company_data = company_response.json()
-                                company_name = company_data.get('CompanyName', '')
+                                company_data = company_response.json()                                
                                 company_address = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
-                                company_address = re.sub(r',+', ',', company_address)
+                                company_address = re.sub(r',+', ',', company_address)                                
 
-                            contactId = requirement.get('ContactId', '')
+                            contactId = requirement.get('contactId', '')
                             contact_url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contactId}"
                             contact_response = requests.get(contact_url, headers=headers)
                             
                             if contact_response.status_code == 200:
                                 contact_data = contact_response.json()
-                                contact_name = (contact_data.get("Forenames") or "") + " " + (contact_data.get("Surname") or "")
-                                contact_address = (contact_data.get("AddressLine1") or "") + ", " + (contact_data.get("AddressLine2") or "") + ", " + (contact_data.get("AddressLine3") or "") + ", " + (contact_data.get("City") or "") + ", " + (contact_data.get("Postcode") or "")
-                                contact_address = re.sub(r',+', ',', contact_address)
-                                contact_email = contact_data.get("EmailAddress", "")
-                                contact_phone = contact_data.get("TelephoneNumber", "")
-                                contact_title = contact_data.get("Title", "")
-                            
+                                                            
                             # Return as JSON
                             return {
-                                "contact_name": contact_name,
-                                "contact_address": contact_address,
-                                "contact_email": contact_email,
-                                "contact_phone": contact_phone,
-                                "contact_title": contact_title
+                                "serviceId": session.get('sid', ''),
+                                "companyName": company_data.get('CompanyName', ''),
+                                "companyAddress": company_address,
+                                "companyEmail": company_data.get("CompanyEmail", ""),
+                                "companyPhone": company_data.get("TelephoneNumber", ""),    
+                                "companyNumber": company_data.get("RegistrationNumber", ""),
+                                "contactName": (contact_data.get("FullName") or ""),
+                                "contactAddress": (contact_data.get("Address") or ""),
+                                "contactEmail": contact_data.get("EmailAddress", ""),
+                                "contactPhone": contact_data.get("ContactNumber", ""),
+                                "contactTitle": contact_data.get("JobTitle", ""),
+                                "jobTitle": experience.get('placementJobTitle', ''),
+                                "startDate": experience.get('placementStartDate', ''),
+                                "endDate": experience.get('placementEndDate', ''), 
+                                "companyName": company_data.get('CompanyName', ''),
+                                "noticePeriod": experience.get('noticePeriod', 0),
+                                "noticePeriodUnit": experience.get('noticePeriodUOM', ''),
+                                "fees": experience.get('placementPayRate', 0.0),
+                                "feecurrency": 'GBP',
+                                "charges": experience.get('placementChargeRate', 0.0),
+                                "chargecurrency": 'GBP',  
+                                "candidateId": candidate_id,
+                                "candidateName": candidate_data.get('FullName', '') 
                             }
         return None
 

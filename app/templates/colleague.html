@@ -33,18 +33,23 @@
         {% if session['sid'] %}            
             {% if contractdata %}
                 <h2>Service Contract Data</h2>
-                {% for line in contractdata %}
-                    <textarea readonly rows="10" cols="80" class="datagrid">
-Service ID: {{ line.sid }}
-Service Name: {{ line.servicename }}
-Company Name: {{ line.companyname }}
-Company Address: {{ line.companyaddress }}
-Company Email: {{ line.companyemail }}
-Company Phone: {{ line.companyphone }}
-Company Registration Number: {{ line.companyregistrationnumber }}
+                
+                    <textarea readonly rows="20" cols="80" class="datagrid">
+Service ID: {{ contractdata['sid'] }}
+Service Name: {{ contractdata['servicename'] }}
+Company Name: {{ contractdata['companyname'] }}
+Company Address: {{ contractdata['companyaddress'] }}
+Company Email: {{ contractdata['companyemail'] }}
+Company Phone: {{ contractdata['companyphone'] }}
+Company Registration Number: {{ contractdata['companyregistrationnumber'] }}
+Contact Name: {{ contractdata['contactname'] }}
+Contact Address: {{ contractdata['contactaddress'] }}
+Contact Email: {{ contractdata['contactemail'] }}
+Contact Phone: {{ contractdata['contactphone'] }} 
+Contact Title: {{ contractdata['contacttitle'] }}
                     </textarea>
                     <br>
-                {% endfor %}
+                
             {% endif %}
         {% endif %}
     </div>

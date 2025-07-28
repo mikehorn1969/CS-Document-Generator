@@ -35,40 +35,55 @@ def clear_session():
 @app.route('/colleaguedata', methods=["GET", "POST"])
 def colleaguedata():
     
-    contractdata = {}
-    
-    if 'sid' in session:
-        contractdata = getC7candidate(session.get('sid', ''))
-    
+    if request.method == "GET":
+        # Load existing contract data if available
+        contract = {}
+        c7contractdata = getC7candidate(session.get('sid', ''))
+        if not c7contractdata:
+            c7contractdata = {}
+        contract['sid'] = c7contractdata.get("serviceId", "").upper()
+        contract['servicename'] = c7contractdata.get("serviceName", "")
+        contract['companyaddress'] = c7contractdata.get("companyAddress", "")
+        contract['companyemail'] = c7contractdata.get("companyEmail", "")
+        contract['companyphone'] = c7contractdata.get("companyPhone", "")
+        contract['companyregistrationnumber'] = c7contractdata.get("companyNumber", "")
+        contract['companyname'] = c7contractdata.get("companyName", "")
+        contract['contactname'] = c7contractdata.get("contactName", "")
+        contract['contactaddress'] = c7contractdata.get("contactAddress", "")
+        contract['contactemail'] = c7contractdata.get("contactEmail", "")
+        contract['contactphone'] = c7contractdata.get("contactPhone", "")
+        contract['contacttitle'] = c7contractdata.get("contactTitle", "")
+
+
     if request.method == "POST":
         if 'btSave' in request.form:
             try:
                 # Try to find existing company in DB
-                contract = ContractModel.query.filter_by(sid=session['sid']).first()
-                if not contract:
+                contractdb = ContractModel.query.filter_by(sid=session['sid']).first()
+                if not contractdb:
                     # Create new company record
-                    contract = ContractModel(
-                        sid=session['sid'],    
-                        companyname=contractdata.get("CompanyName", ""),
-                        companyaddress=contractdata.get("CompanyAddress", ""),
-                        companyemail=contractdata.get("CompanyEmail", ""),
-                        companyphone=contractdata.get("CompanyPhone", ""),
-                        companyregistrationnumber=contractdata.get("CompanyNumber", "")
-                        )
-                    db.session.add(contract)
-                else:
-                    # Update existing record
-                    contract.companyaddress = contractdata.get("CompanyAddress", "")
-                    contract.companyemail = contractdata.get("CompanyEmail", "")
-                    contract.companyphone = contractdata.get("CompanyPhone", "")
-                    contract.companyregistrationnumber = contractdata.get("CompanyNumber", "")
-                    
+                    contractdb = ContractModel(
+                        sid = contract.get("serviceId", "").upper(),
+                        servicename = contract.get("servicename", "") )
+                    db.session.add(contractdb)
+                
+                # Update existing record using contract dictionary (no trailing commas!)
+                contractdb.companyaddress = contract.get("companyaddress", "")
+                contractdb.companyemail = contract.get("companyemail", "")
+                contractdb.companyphone = contract.get("companyphone", "")
+                contractdb.companyregistrationnumber = contract.get("companyregistrationnumber", "")
+                contractdb.companyname = contract.get("companyname", "")
+                contractdb.contactname = contract.get("contactname", "")
+                contractdb.contactaddress = contract.get("contactaddress", "")
+                contractdb.contactemail = contract.get("contactemail", "")
+                contractdb.contactphone = contract.get("contactphone", "")
+                contractdb.contacttitle = contract.get("contacttitle", "")
                 db.session.commit()
             except Exception as e:
                 error = str(e)
         
     return render_template(
-        'colleague.html', contractdata=contractdata)
+        'colleague.html', contractdata=contract)
         
 
 @app.route('/servicestandards', methods=['GET', 'POST'])
