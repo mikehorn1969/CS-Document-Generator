@@ -2,14 +2,15 @@ from app import app, db
 from flask import Flask, render_template, request, redirect, url_for, session
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
 from app.c7query import getC7Clients, getContactsByCompany, getC7Requirements, getC7RequirementCandidates, getC7candidate
-
 from app.chquery import getCHRecord
 from app.classes import Company, Contact, Requirement, Candidate
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 
 @app.route('/', methods=["GET", "POST"])
 def index():
-    return render_template('index.html', sid=session.get('sid', ''))
+    return render_template('index.html', sid=session.get('sid', '').upper())
 
 
 @app.route('/setsid', methods=["GET", "POST"])
@@ -41,18 +42,73 @@ def colleaguedata():
         c7contractdata = getC7candidate(session.get('sid', ''))
         if not c7contractdata:
             c7contractdata = {}
-        contract['sid'] = c7contractdata.get("serviceId", "").upper()
-        contract['servicename'] = c7contractdata.get("serviceName", "")
-        contract['companyaddress'] = c7contractdata.get("companyAddress", "")
-        contract['companyemail'] = c7contractdata.get("companyEmail", "")
-        contract['companyphone'] = c7contractdata.get("companyPhone", "")
-        contract['companyregistrationnumber'] = c7contractdata.get("companyNumber", "")
-        contract['companyname'] = c7contractdata.get("companyName", "")
-        contract['contactname'] = c7contractdata.get("contactName", "")
-        contract['contactaddress'] = c7contractdata.get("contactAddress", "")
-        contract['contactemail'] = c7contractdata.get("contactEmail", "")
-        contract['contactphone'] = c7contractdata.get("contactPhone", "")
-        contract['contacttitle'] = c7contractdata.get("contactTitle", "")
+        else:
+            contract['sid'] = c7contractdata.get("serviceId", "").upper()
+            contract['servicename'] = c7contractdata.get("serviceName", "")
+            contract['companyaddress'] = c7contractdata.get("companyAddress", "")
+            contract['companyemail'] = c7contractdata.get("companyEmail", "")
+            contract['companyphone'] = c7contractdata.get("companyPhone", "")
+            contract['companyregistrationnumber'] = c7contractdata.get("companyNumber", "")
+            contract['companyname'] = c7contractdata.get("companyName", "")
+            contract['contactname'] = c7contractdata.get("contactName", "")
+            contract['contactaddress'] = c7contractdata.get("contactAddress", "")
+            contract['contactemail'] = c7contractdata.get("contactEmail", "")
+            contract['contactphone'] = c7contractdata.get("contactPhone", "")
+            contract['contacttitle'] = c7contractdata.get("contactTitle", "")
+            contract['jobtitle'] = c7contractdata.get("jobTitle", "")
+            
+            contract['companyname'] = c7contractdata.get("companyName", "")
+            
+            
+            contract['fees'] = c7contractdata.get("fees", 0.0)
+            contract['feecurrency'] = c7contractdata.get("feecurrency", "GBP")
+            contract['charges'] = c7contractdata.get("charges", 0.0)
+            contract['chargecurrency'] = c7contractdata.get("chargecurrency", "GBP")
+            contract['requirementid'] = c7contractdata.get("requirementId", 0)
+            contract['candidateid'] = c7contractdata.get("candidateId", 0)
+            contract['placementid'] = c7contractdata.get("placementId", 0)
+            contract['candidatename'] = c7contractdata.get("candidateName", "")
+            contract['candidateaddress'] = c7contractdata.get("candidateAddress", "")
+            contract['candidateemail'] = c7contractdata.get("candidateEmail", "")
+            contract['candidatephone'] = c7contractdata.get("candidatePhone", "")
+            contract['candidateltdname'] = c7contractdata.get("candidateLtdName", "")
+            contract['candidateltdregno'] = c7contractdata.get("candidateLtdRegno", "")
+            contract['description'] = c7contractdata.get("description", "")
+            contract['companyid'] = c7contractdata.get("companyId", 0)
+            contract['contactid'] = c7contractdata.get("contactId", 0)  
+
+            contract['noticeperiod'] = 4 # Default to 4 weeks, can be changed later
+            contract['noticeperiodunit'] = "weeks"  # Default to weeks, can be changed later
+
+            start_date = c7contractdata.get("startDate", "")
+            end_date = c7contractdata.get("endDate", "")
+
+            if start_date and end_date:
+            
+                dt_start_date = datetime.strptime(start_date + "000", "%Y-%m-%d %H:%M:%S.%f").date()
+                dt_end_date = datetime.strptime(end_date + "000", "%Y-%m-%d %H:%M:%S.%f").date()
+
+                delta = relativedelta(dt_end_date, dt_start_date)
+
+                parts = []
+                if delta.years > 0:
+                    parts.append(f"{delta.years} year{'s' if delta.years > 1 else ''}") 
+                if delta.months > 0:
+                    parts.append(f"{delta.months} month{'s' if delta.months > 1 else ''}")
+                if delta.days > 0:
+                    weeks = delta.days // 7
+                    parts.append(f"{weeks} week{'s' if weeks > 1 else ''}")
+                    remaining_days = delta.days % 7
+                    if remaining_days > 0:
+                        parts.append(f"{remaining_days} day{'s' if remaining_days > 1 else ''}")
+                elif delta.days:
+                    parts.append(f"{delta.days} day{'s' if delta.days > 1 else ''}")
+
+                duration = ", ".join(parts) if parts else "0 days" 
+            
+            contract['startdate'] = start_date
+            contract['enddate'] = end_date
+            contract['duration'] = duration
 
 
     if request.method == "POST":
