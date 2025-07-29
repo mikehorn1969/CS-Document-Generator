@@ -1,16 +1,15 @@
 from app import app, db
 from flask import Flask, render_template, request, redirect, url_for, session
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import getC7Clients, getContactsByCompany, getC7Requirements, getC7RequirementCandidates, getC7candidate
+from app.c7query import  getC7candidate
 from app.chquery import getCHRecord
-from app.classes import Company, Contact, Requirement, Candidate
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 
 @app.route('/', methods=["GET", "POST"])
 def index():
-    return render_template('index.html', sid=session.get('sid', '').upper())
+    return render_template('index.html', sid=session.get('sid', ''))
 
 
 @app.route('/setsid', methods=["GET", "POST"])
@@ -18,7 +17,7 @@ def save_sid():
     if request.method == 'POST':
         sid = request.form.get('sid', '').strip()
         if sid:
-            session['sid'] = sid  # Save Service ID to session
+            session['sid'] = sid.upper()  # Save Service ID to session
             
         else:
             error = "Please enter a valid Service ID."
@@ -33,7 +32,7 @@ def clear_session():
     return redirect(url_for('index'))
 
 
-@app.route('/colleaguedata', methods=["GET", "POST"])
+@app.route('/colleaguedata', methods=["GET"])
 def colleaguedata():
     
     if request.method == "GET":
@@ -43,50 +42,47 @@ def colleaguedata():
         if not c7contractdata:
             c7contractdata = {}
         else:
-            contract['sid'] = c7contractdata.get("serviceId", "").upper()
-            contract['servicename'] = c7contractdata.get("serviceName", "")
-            contract['companyaddress'] = c7contractdata.get("companyAddress", "")
-            contract['companyemail'] = c7contractdata.get("companyEmail", "")
-            contract['companyphone'] = c7contractdata.get("companyPhone", "")
-            contract['companyregistrationnumber'] = c7contractdata.get("companyNumber", "")
-            contract['companyname'] = c7contractdata.get("companyName", "")
-            contract['contactname'] = c7contractdata.get("contactName", "")
-            contract['contactaddress'] = c7contractdata.get("contactAddress", "")
-            contract['contactemail'] = c7contractdata.get("contactEmail", "")
-            contract['contactphone'] = c7contractdata.get("contactPhone", "")
-            contract['contacttitle'] = c7contractdata.get("contactTitle", "")
-            contract['jobtitle'] = c7contractdata.get("jobTitle", "")
-            
-            contract['companyname'] = c7contractdata.get("companyName", "")
-            
-            
+            contract['sid'] = c7contractdata.get("sid", "").upper()
+            contract['servicename'] = c7contractdata.get("servicename", "")
+            contract['companyaddress'] = c7contractdata.get("companyaddress", "")
+            contract['companyemail'] = c7contractdata.get("companyemail", "")
+            contract['companyphone'] = c7contractdata.get("companyphone", "")
+            contract['companyregistrationnumber'] = c7contractdata.get("companynumber", "")
+            contract['companyname'] = c7contractdata.get("companyname", "")
+            contract['contactname'] = c7contractdata.get("contactname", "")
+            contract['contactaddress'] = c7contractdata.get("contactaddress", "")
+            contract['contactemail'] = c7contractdata.get("contactemail", "")
+            contract['contactphone'] = c7contractdata.get("contactphone", "")
+            contract['contacttitle'] = c7contractdata.get("contacttitle", "")
+            contract['jobtitle'] = c7contractdata.get("jobtitle", "")
+            contract['companyname'] = c7contractdata.get("companyname", "")
             contract['fees'] = c7contractdata.get("fees", 0.0)
             contract['feecurrency'] = c7contractdata.get("feecurrency", "GBP")
             contract['charges'] = c7contractdata.get("charges", 0.0)
             contract['chargecurrency'] = c7contractdata.get("chargecurrency", "GBP")
-            contract['requirementid'] = c7contractdata.get("requirementId", 0)
-            contract['candidateid'] = c7contractdata.get("candidateId", 0)
-            contract['placementid'] = c7contractdata.get("placementId", 0)
-            contract['candidatename'] = c7contractdata.get("candidateName", "")
-            contract['candidateaddress'] = c7contractdata.get("candidateAddress", "")
-            contract['candidateemail'] = c7contractdata.get("candidateEmail", "")
-            contract['candidatephone'] = c7contractdata.get("candidatePhone", "")
-            contract['candidateltdname'] = c7contractdata.get("candidateLtdName", "")
-            contract['candidateltdregno'] = c7contractdata.get("candidateLtdRegno", "")
+            contract['requirementid'] = c7contractdata.get("requirementid", 0)
+            contract['candidateid'] = c7contractdata.get("candidateid", 0)
+            contract['placementid'] = c7contractdata.get("placementid", 0)
+            contract['candidatename'] = c7contractdata.get("candidatename", "")
+            contract['candidateaddress'] = c7contractdata.get("candidateaddress", "")
+            contract['candidateemail'] = c7contractdata.get("candidateemail", "")
+            contract['candidatephone'] = c7contractdata.get("candidatephone", "")
+            contract['candidateltdname'] = c7contractdata.get("candidateltdname", "")
+            contract['candidateltdregno'] = c7contractdata.get("candidateltdregno", "")
             contract['description'] = c7contractdata.get("description", "")
-            contract['companyid'] = c7contractdata.get("companyId", 0)
-            contract['contactid'] = c7contractdata.get("contactId", 0)  
-
+            contract['companyid'] = c7contractdata.get("companyid", 0)
+            contract['contactid'] = c7contractdata.get("contactid", 0)  
             contract['noticeperiod'] = 4 # Default to 4 weeks, can be changed later
-            contract['noticeperiodunit'] = "weeks"  # Default to weeks, can be changed later
+            contract['noticeperiod_unit'] = "weeks"  # Default to weeks, can be changed later
 
-            start_date = c7contractdata.get("startDate", "")
-            end_date = c7contractdata.get("endDate", "")
+            start_date = c7contractdata.get("startdate", "")[:10]  # Ensure date is in YYYY-MM-DD format
+            end_date = c7contractdata.get("enddate", "")[:10]  # Ensure date is in YYYY-MM-DD format
+            duration = "0 days" # Default duration
 
             if start_date and end_date:
             
-                dt_start_date = datetime.strptime(start_date + "000", "%Y-%m-%d %H:%M:%S.%f").date()
-                dt_end_date = datetime.strptime(end_date + "000", "%Y-%m-%d %H:%M:%S.%f").date()
+                dt_start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+                dt_end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
 
                 delta = relativedelta(dt_end_date, dt_start_date)
 
@@ -110,36 +106,83 @@ def colleaguedata():
             contract['enddate'] = end_date
             contract['duration'] = duration
 
+    session['sessionContract'] = contract
+
+    return render_template(
+        'colleague.html', contractdata=contract)
+
+
+@app.route('/savecolleaguedata', methods=["POST"])
+def savecolleaguedata():
+    """
+    Handles the saving of colleague contract data from a POST request.
+    This function processes form data submitted via POST, retrieves or creates a contract record in the database,
+    and updates its fields with values from the session's 'sessionContract' dictionary. If the contract does not
+    exist, it creates a new record; otherwise, it updates the existing one. After saving changes to the database,
+    it renders the 'colleague.html' template with the contract data.
+    Returns:
+        flask.Response: Rendered HTML template with contract data.
+    Raises:
+        Exception: Any exception during database operations is caught and stored as an error message.
+    """
 
     if request.method == "POST":
         if 'btSave' in request.form:
             try:
+                contract = session.get('sessionContract', {})
+                sid = session.get('sid')
+                if not sid: 
+                    error = "Service ID is not set in the session."
+                    return render_template('colleague.html', contractdata=contract, error=error) 
+                
                 # Try to find existing company in DB
-                contractdb = ContractModel.query.filter_by(sid=session['sid']).first()
+                contractdb = ContractModel.query.filter_by(sid=sid).first()
                 if not contractdb:
                     # Create new company record
-                    contractdb = ContractModel(
-                        sid = contract.get("serviceId", "").upper(),
+                    contractdb = ContractModel( 
+                        sid = contract.get("sid", "").upper(),
                         servicename = contract.get("servicename", "") )
                     db.session.add(contractdb)
                 
-                # Update existing record using contract dictionary (no trailing commas!)
-                contractdb.companyaddress = contract.get("companyaddress", "")
-                contractdb.companyemail = contract.get("companyemail", "")
-                contractdb.companyphone = contract.get("companyphone", "")
-                contractdb.companyregistrationnumber = contract.get("companyregistrationnumber", "")
-                contractdb.companyname = contract.get("companyname", "")
-                contractdb.contactname = contract.get("contactname", "")
-                contractdb.contactaddress = contract.get("contactaddress", "")
-                contractdb.contactemail = contract.get("contactemail", "")
-                contractdb.contactphone = contract.get("contactphone", "")
-                contractdb.contacttitle = contract.get("contacttitle", "")
+                # Update existing record using contract dictionary 
+                fields = ["companyaddress", "companyemail", "companyphone", "companyregistrationnumber",
+                          "companyname", "contactname", "contactaddress", "contactemail", "contactphone",
+                          "contacttitle", "jobtitle", "fees", "feecurrency", "charges", "chargecurrency",
+                          "requirementid", "candidateid", "placementid", "candidateaddress", "candidateemail",
+                          "candidatephone", "candidateltdname", "candidateltdregno", "description", "companyid",
+                          "contactid", "noticeperiod", "noticeperiod_unit", "duration"
+                         ]
+
+                # Set defaults if necessary
+                defaults = {
+                    "fees": 0.0,
+                    "charges": 0.0,
+                    "requirementid": 0,
+                    "candidateid": 0,
+                    "companyid": 0,
+                    "contactid": 0,
+                    "noticeperiod": 4,
+                    "noticeperiod_unit": "weeks",
+                    "feecurrency": "GBP",
+                    "chargecurrency": "GBP"
+                }
+
+                for field in fields:
+                    value = contract.get(field, defaults.get(field, ""))
+                    setattr(contractdb, field, value)
+
+                # Handle dates separately         
+                start_date = contract.get("startdate", "")  # Ensure date is in YYYY-MM-DD format
+                end_date = contract.get("enddate", "") # Ensure date is in YYYY-MM-DD format  
+                                     
+                contractdb.startdate = parse_date(start_date)
+                contractdb.enddate = parse_date(end_date)
+                 
                 db.session.commit()
             except Exception as e:
                 error = str(e)
         
-    return render_template(
-        'colleague.html', contractdata=contract)
+    return redirect(url_for('index'))
         
 
 @app.route('/servicestandards', methods=['GET', 'POST'])
@@ -209,3 +252,9 @@ def manage_servicearrangements():
 def prepare_contract():
     return 'Prepare merge template here'
 
+
+def parse_date(value: str):
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None

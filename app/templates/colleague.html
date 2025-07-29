@@ -16,7 +16,7 @@
         {% if session['sid'] %}
             <p><strong>Service ID:</strong> {{ session['sid'] }}<p>
             
-            <form action="/" method="get">
+            <form action="/savecolleaguedata" method="post">
                 <input type="submit" value="Save" name="btSave" class="submit-btn"/>
             </form>
         {% else %}

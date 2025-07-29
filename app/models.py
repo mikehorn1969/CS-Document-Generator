@@ -57,7 +57,7 @@ class ServiceContract(db.Model):
     candidatephone = db.Column(db.String(50))
     candidateltdname = db.Column(db.String(100))
     candidateltdregno = db.Column(db.String(50))
-
+    jobtitle = db.Column(db.String(100))
     
     
 
