@@ -1,10 +1,13 @@
 from app import app, db
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
 from app.c7query import  getC7candidate
 from app.chquery import getCHRecord
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from sqlalchemy import select
+import pandas as pd
+from io import BytesIO
 
 
 @app.route('/', methods=["GET", "POST"])
@@ -34,77 +37,112 @@ def clear_session():
 
 @app.route('/colleaguedata', methods=["GET"])
 def colleaguedata():
+    """
+    Handles GET requests to load and prepare contract data for the colleague view.
+    This function attempts to retrieve contract data in the following order:
+    1. From the session (if previously saved).
+    2. From the database using the session's 'sid'.
+    3. From an external C7 source if not found in session or database.
+    If data is loaded from C7, it maps and formats relevant fields, including calculating the contract duration based on start and end dates. The contract data is then stored in the session and passed to the 'colleague.html' template for rendering.
+    Returns:
+        Rendered HTML template 'colleague.html' with contract data context.
+    """
     
     if request.method == "GET":
         # Load existing contract data if available
         contract = {}
-        c7contractdata = getC7candidate(session.get('sid', ''))
-        if not c7contractdata:
-            c7contractdata = {}
+        sid = session.get('sid')
+        # is there a saved contract in the session?
+        saved_contract = session.get('sessionContract', {})
+        
+        # If not, try to load from the database
+        if not saved_contract:
+            saved_contract = ContractModel.query.filter_by(sid=sid).first()    
+
+        # if there is no saved contract, try to load from C7
+        if not saved_contract: 
+            c7contractdata = getC7candidate(session.get('sid', ''))
+            if not c7contractdata:
+                c7contractdata = {}
+            else:
+                contract['sid'] = c7contractdata.get("sid", "").upper()
+                contract['servicename'] = c7contractdata.get("servicename", "")
+                contract['companyaddress'] = c7contractdata.get("companyaddress", "")
+                contract['companyemail'] = c7contractdata.get("companyemail", "")
+                contract['companyphone'] = c7contractdata.get("companyphone", "")
+                contract['companyregistrationnumber'] = c7contractdata.get("companynumber", "")
+                contract['companyname'] = c7contractdata.get("companyname", "")
+                contract['contactname'] = c7contractdata.get("contactname", "")
+                contract['contactaddress'] = c7contractdata.get("contactaddress", "")
+                contract['contactemail'] = c7contractdata.get("contactemail", "")
+                contract['contactphone'] = c7contractdata.get("contactphone", "")
+                contract['contacttitle'] = c7contractdata.get("contacttitle", "")
+                contract['jobtitle'] = c7contractdata.get("jobtitle", "")
+                contract['companyname'] = c7contractdata.get("companyname", "")
+                contract['fees'] = c7contractdata.get("fees", 0.0)
+                contract['feecurrency'] = c7contractdata.get("feecurrency", "GBP")
+                contract['charges'] = c7contractdata.get("charges", 0.0)
+                contract['chargecurrency'] = c7contractdata.get("chargecurrency", "GBP")
+                contract['requirementid'] = c7contractdata.get("requirementid", 0)
+                contract['candidateid'] = c7contractdata.get("candidateid", 0)
+                contract['placementid'] = c7contractdata.get("placementid", 0)
+                contract['candidatename'] = c7contractdata.get("candidatename", "")
+                contract['candidateaddress'] = c7contractdata.get("candidateaddress", "")
+                contract['candidateemail'] = c7contractdata.get("candidateemail", "")
+                contract['candidatephone'] = c7contractdata.get("candidatephone", "")
+                contract['candidateltdname'] = c7contractdata.get("candidateltdname", "")
+                contract['candidateltdregno'] = c7contractdata.get("candidateltdregno", "")
+                contract['description'] = c7contractdata.get("description", "")
+                contract['companyid'] = c7contractdata.get("companyid", 0)
+                contract['contactid'] = c7contractdata.get("contactid", 0)  
+                contract['noticeperiod'] = 4 # Default to 4 weeks, can be changed later
+                contract['noticeperiod_unit'] = "weeks"  # Default to weeks, can be changed later
+
+                start_date = c7contractdata.get("startdate", "")[:10]  # Ensure date is in YYYY-MM-DD format
+                end_date = c7contractdata.get("enddate", "")[:10]  # Ensure date is in YYYY-MM-DD format
+                duration = "0 days" # Default duration
+
+                if start_date and end_date:
+                
+                    dt_start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+                    dt_end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+                    delta = relativedelta(dt_end_date, dt_start_date)
+
+                    parts = []
+                    if delta.years > 0:
+                        parts.append(f"{delta.years} year{'s' if delta.years > 1 else ''}") 
+                    if delta.months > 0:
+                        parts.append(f"{delta.months} month{'s' if delta.months > 1 else ''}")
+                    if delta.days > 0:
+                        weeks = delta.days // 7
+                        parts.append(f"{weeks} week{'s' if weeks > 1 else ''}")
+                        remaining_days = delta.days % 7
+                        if remaining_days > 0:
+                            parts.append(f"{remaining_days} day{'s' if remaining_days > 1 else ''}")
+                    elif delta.days:
+                        parts.append(f"{delta.days} day{'s' if delta.days > 1 else ''}")
+
+                    duration = ", ".join(parts) if parts else "0 days" 
+                
+                contract['startdate'] = start_date
+                contract['enddate'] = end_date
+                contract['duration'] = duration
         else:
-            contract['sid'] = c7contractdata.get("sid", "").upper()
-            contract['servicename'] = c7contractdata.get("servicename", "")
-            contract['companyaddress'] = c7contractdata.get("companyaddress", "")
-            contract['companyemail'] = c7contractdata.get("companyemail", "")
-            contract['companyphone'] = c7contractdata.get("companyphone", "")
-            contract['companyregistrationnumber'] = c7contractdata.get("companynumber", "")
-            contract['companyname'] = c7contractdata.get("companyname", "")
-            contract['contactname'] = c7contractdata.get("contactname", "")
-            contract['contactaddress'] = c7contractdata.get("contactaddress", "")
-            contract['contactemail'] = c7contractdata.get("contactemail", "")
-            contract['contactphone'] = c7contractdata.get("contactphone", "")
-            contract['contacttitle'] = c7contractdata.get("contacttitle", "")
-            contract['jobtitle'] = c7contractdata.get("jobtitle", "")
-            contract['companyname'] = c7contractdata.get("companyname", "")
-            contract['fees'] = c7contractdata.get("fees", 0.0)
-            contract['feecurrency'] = c7contractdata.get("feecurrency", "GBP")
-            contract['charges'] = c7contractdata.get("charges", 0.0)
-            contract['chargecurrency'] = c7contractdata.get("chargecurrency", "GBP")
-            contract['requirementid'] = c7contractdata.get("requirementid", 0)
-            contract['candidateid'] = c7contractdata.get("candidateid", 0)
-            contract['placementid'] = c7contractdata.get("placementid", 0)
-            contract['candidatename'] = c7contractdata.get("candidatename", "")
-            contract['candidateaddress'] = c7contractdata.get("candidateaddress", "")
-            contract['candidateemail'] = c7contractdata.get("candidateemail", "")
-            contract['candidatephone'] = c7contractdata.get("candidatephone", "")
-            contract['candidateltdname'] = c7contractdata.get("candidateltdname", "")
-            contract['candidateltdregno'] = c7contractdata.get("candidateltdregno", "")
-            contract['description'] = c7contractdata.get("description", "")
-            contract['companyid'] = c7contractdata.get("companyid", 0)
-            contract['contactid'] = c7contractdata.get("contactid", 0)  
-            contract['noticeperiod'] = 4 # Default to 4 weeks, can be changed later
-            contract['noticeperiod_unit'] = "weeks"  # Default to weeks, can be changed later
+            # Update existing record using contract dictionary 
+            fields = ["companyaddress", "companyemail", "companyphone", "companyregistrationnumber",
+                      "companyname", "contactname", "contactaddress", "contactemail", "contactphone",
+                      "contacttitle", "jobtitle", "fees", "feecurrency", "charges", "chargecurrency",
+                      "requirementid", "candidateid", "placementid", "candidatename", "candidateaddress", "candidateemail",
+                      "candidatephone", "candidateltdname", "candidateltdregno", "description", "companyid",
+                      "contactid", "noticeperiod", "noticeperiod_unit", "duration", "startdate", "enddate"
+                     ]
 
-            start_date = c7contractdata.get("startdate", "")[:10]  # Ensure date is in YYYY-MM-DD format
-            end_date = c7contractdata.get("enddate", "")[:10]  # Ensure date is in YYYY-MM-DD format
-            duration = "0 days" # Default duration
-
-            if start_date and end_date:
-            
-                dt_start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-                dt_end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-
-                delta = relativedelta(dt_end_date, dt_start_date)
-
-                parts = []
-                if delta.years > 0:
-                    parts.append(f"{delta.years} year{'s' if delta.years > 1 else ''}") 
-                if delta.months > 0:
-                    parts.append(f"{delta.months} month{'s' if delta.months > 1 else ''}")
-                if delta.days > 0:
-                    weeks = delta.days // 7
-                    parts.append(f"{weeks} week{'s' if weeks > 1 else ''}")
-                    remaining_days = delta.days % 7
-                    if remaining_days > 0:
-                        parts.append(f"{remaining_days} day{'s' if remaining_days > 1 else ''}")
-                elif delta.days:
-                    parts.append(f"{delta.days} day{'s' if delta.days > 1 else ''}")
-
-                duration = ", ".join(parts) if parts else "0 days" 
-            
-            contract['startdate'] = start_date
-            contract['enddate'] = end_date
-            contract['duration'] = duration
+            contract = {
+                field: getattr(saved_contract, field)
+                for field in fields
+                if hasattr(saved_contract, field)
+            }
 
     session['sessionContract'] = contract
 
@@ -148,7 +186,7 @@ def savecolleaguedata():
                 fields = ["companyaddress", "companyemail", "companyphone", "companyregistrationnumber",
                           "companyname", "contactname", "contactaddress", "contactemail", "contactphone",
                           "contacttitle", "jobtitle", "fees", "feecurrency", "charges", "chargecurrency",
-                          "requirementid", "candidateid", "placementid", "candidateaddress", "candidateemail",
+                          "requirementid", "candidateid", "placementid", "candidatename", "candidateaddress", "candidateemail",
                           "candidatephone", "candidateltdname", "candidateltdregno", "description", "companyid",
                           "contactid", "noticeperiod", "noticeperiod_unit", "duration"
                          ]
@@ -187,39 +225,49 @@ def savecolleaguedata():
 
 @app.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
-    from app.models import ServiceStandard
-    standards = ServiceStandard.query.filter_by(sid=session.get('sid')).all()
 
+    sid = session.get('sid', '')
+    standards = []
+    
     if request.method == 'POST':
-        ids = request.form.getlist('id')
+        stdids = request.form.getlist('id')
         ssns = request.form.getlist('ssn')
         descriptions = request.form.getlist('service-description')
 
         # You can zip and process them here:
-        standards = list(zip(ids, ssns, descriptions))
+        standards = list(zip(stdids, ssns, descriptions))
 
         # Example: print or save them
-        for id_, ssn, desc in standards:
-            if id_:
-                rawDesc = desc.strip().strip('"')
-                record = ServiceStandard.query.get(int(id_))                
+        for stdid, ssn, desc in standards:
+            if ssn:
+                rawDesc = desc.strip().strip('"')    
+                record = None
+                if stdid and stdid.isdigit():
+                    record = ServiceStandard.query.get(int(stdid))  
                 if record:
                     record.ssn = ssn.strip()
                     record.description = rawDesc
-            else:   
-                if ssn.strip() or desc.strip():
-                    db.session.add(ServiceStandard(ssn=ssn.strip(), description=rawDesc))
+                else:   
+                    if ssn.strip() and desc.strip():
+                        db.session.add(ServiceStandard(sid=sid, ssn=ssn.strip(), description=rawDesc))
         
         db.session.commit()
-        return redirect(url_for('set_servicestandards'))
+
+        return redirect(url_for('index'))
     
+    if request.method == "GET":
+        if sid:
+            standards = ServiceStandard.query.filter_by(sid=sid).all()
+    
+    # Store standards in session for later use
+    session['serviceStandards'] = [s.to_dict() for s in standards]
 
     return render_template('standards.html', standards=standards)
 
 
-@app.route('/delete/<int:id>', methods=['POST'])
-def delete_standard(id):
-    standard = ServiceStandard.query.get_or_404(id)
+@app.route('/delete/<int:stdid>', methods=['POST'])
+def delete_standard(stdid):
+    standard = ServiceStandard.query.get_or_404(stdid)
     db.session.delete(standard)
     db.session.commit()
     return redirect(url_for('set_servicestandards'))
@@ -228,33 +276,107 @@ def delete_standard(id):
 @app.route('/servicearrangements', methods=['GET', 'POST'])
 def manage_servicearrangements():
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-
+    sid = session.get('sid', '')
+    
     if request.method == 'POST':
         for day in days:
-            row = ServiceArrangement.query.filter_by(day=day).first()
+            row = ServiceArrangement.query.filter_by(sid=sid,day=day).first()
             if not row:
-                row = ServiceArrangement(day=day)
+                row = ServiceArrangement(sid=sid, day=day)
+
                 db.session.add(row)
 
-            row.defaultserviceperiod = request.form.get(f'{day}_default', '')
-            row.atservicebase = request.form.get(f'{day}_base', '')
-            row.atclientlocation = request.form.get(f'{day}_client', '')
-            row.atotherlocation = request.form.get(f'{day}_other', '')
+            if day in "Saturday Sunday":
+                row.defaultserviceperiod = request.form.get(f'{day}_default', 'As agreed if required')
+                row.atservicebase = request.form.get(f'{day}_base', 'As agreed if required')
+                row.atclientlocation = request.form.get(f'{day}_client', 'As agreed if required')
+                row.atotherlocation = request.form.get(f'{day}_other', 'Prior approval required')
+            else:
+                row.defaultserviceperiod = request.form.get(f'{day}_default', 'As specified 0800 - 1800')
+                row.atservicebase = request.form.get(f'{day}_base', 'As specified')
+                row.atclientlocation = request.form.get(f'{day}_client', 'As specified')
+                row.atotherlocation = request.form.get(f'{day}_other', 'Prior approval required')
 
         db.session.commit()
-        return redirect(url_for('manage_servicearrangements'))
+        return redirect(url_for('index'))
 
-    arrangements = {row.day: row for row in ServiceArrangement.query.all()}
+    stmt = select(ServiceArrangement).where(ServiceArrangement.sid == sid)
+
+    # Execute the query using session
+    results = db.session.execute(stmt).scalars().all()
+
+    # Build the dictionary    
+    arrangements = {row.day: row for row in results}
+
+    # Store arrangements in session for later use
+    session['serviceArrangements'] = [s.to_dict() for s in results]
+    
     return render_template('arrangements.html', arrangements=arrangements)
 
 
-@app.route('/preparecontract')
+@app.route('/clientcontract', methods=['GET', 'POST'])
 def prepare_contract():
-    return 'Prepare merge template here'
+
+    sid = session.get('sid', '')
+    return render_template('clientcontract.html',sid=sid)
+
+
+@app.route('/download_excel')
+def download_excel():
+    # Get session data
+    service_standards = session.get('ServiceStandards', [])
+    contract = session.get('sessionContract', {})
+    arrangements = session.get('serviceArrangements', {})
+
+    # Build rows
+    data_rows = []
+    for standard in service_standards:
+        row = {}
+
+        # Flatten standard fields
+        if isinstance(standard, dict):
+            row.update(standard)
+        else:
+            row['standard'] = str(standard)  # fallback if it's not a dict
+
+        # Merge contract data
+        row.update(contract)
+
+        # Merge arrangement fields (optional flattening)
+        for day, values in arrangements.items():
+            if isinstance(values, dict):
+                for k, v in values.items():
+                    row[f"{day}_{k}"] = v
+            else:
+                row[day] = values
+
+        data_rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(data_rows)
+
+    # Write to Excel in-memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Contract Export')
+
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="contract_export.xlsx",
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
 
 def parse_date(value: str):
     try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
+        # Parse the date string
+        dt = datetime.strptime(value, "%a, %d %b %Y %H:%M:%S %Z")
+
+        # return as a date object        
+        date_only = dt.date()
+        return date_only
+    
     except (ValueError, TypeError):
         return None

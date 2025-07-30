@@ -27,15 +27,24 @@
                 {% set row = arrangements.get(day) %}
                 <tr>
                     <td><strong>{{ day }}</strong></td>
-                    <td><input type="text" name="{{ day }}_default" value="{{ row.defaultserviceperiod if row else '' }}"></td>
-                    <td><input type="text" name="{{ day }}_base" value="{{ row.atservicebase if row else '' }}"></td>
-                    <td><input type="text" name="{{ day }}_client" value="{{ row.atclientlocation if row else '' }}"></td>
-                    <td><input type="text" name="{{ day }}_other" value="{{ row.atotherlocation if row else '' }}"></td>
+                    {% if day in "Saturday Sunday" %}
+                        <td><input type="text" name="{{ day }}_default" value="{{ row.defaultserviceperiod if row else 'As agreed if required' }}"></td>
+                        <td><input type="text" name="{{ day }}_base" value="{{ row.atservicebase if row else 'As agreed if required' }}"></td>
+                        <td><input type="text" name="{{ day }}_client" value="{{ row.atclientlocation if row else 'As agreed if required' }}"></td>
+                        <td><input type="text" name="{{ day }}_other" value="{{ row.atotherlocation if row else 'Prior approval required' }}"></td>
+                    {% else %}
+                        <td><input type="text" name="{{ day }}_default" value="{{ row.defaultserviceperiod if row else 'As specified 0800 - 1800' }}"></td>
+                        <td><input type="text" name="{{ day }}_base" value="{{ row.atservicebase if row else 'As specified' }}"></td>
+                        <td><input type="text" name="{{ day }}_client" value="{{ row.atclientlocation if row else 'As specified' }}"></td>
+                        <td><input type="text" name="{{ day }}_other" value="{{ row.atotherlocation if row else 'Prior approval required' }}"></td>
+                    {% endif %}
                 </tr>
             {% endfor %}
         </tbody>
     </table>
-    <button type="submit">Save Changes</button>
+    <form action="/servicestandards" method="post">
+        <button type="submit" class="">Save Changes</button>
+    </form>
 </form>
 
 {% endblock %}

@@ -32,19 +32,34 @@
 
 <div> 
     <form action="colleaguedata" method="get">
-        <input type="submit" value="Colleague Data" class="submit-btn"/>
+        {% if session['sessionContract'] %}
+            <input type="submit" value="Colleague Data" class="add-btn"/>
+        {% else %}
+            <input type="submit" value="Colleague Data" class="submit-btn"/>
+        {% endif %}        
     </form>
     <br>
     <form action="servicestandards" method="get">
-        <input type="submit" value="Service Standards" class="submit-btn"/>
+        {% if session['serviceStandards'] %}
+            <input type="submit" value="Service Standards" class="add-btn"/>
+        {% else %}
+            <input type="submit" value="Service Standards" class="submit-btn"/>
+        {% endif %}
     </form>
     <br>
     <form action="servicearrangements" method="get">
-        <input type="submit" value="Service Arrangements" class="submit-btn"/>
+        {% if session['serviceArrangements'] %}
+            <input type="submit" value="Service Arrangements" class="add-btn"/>
+        {% else %}
+            <input type="submit" value="Service Arrangements" class="submit-btn"/>
+        {% endif %}        
     </form>
     <br>
-    <form action="preparecontract" method="get">
-        <input type="submit" value="Prepare contract" class="add-btn"/>
+    <form action="clientcontract" method="get">
+        {% if session['sessionContract'] and session['serviceStandards'] and session['serviceArrangements']  %}
+            <input type="submit" value="Prepare client contract" class="submit-btn"/>
+        {% endif %}
+        
     </form>
 </div>
 

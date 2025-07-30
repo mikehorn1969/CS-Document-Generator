@@ -2,13 +2,21 @@ from app import db
 from sqlalchemy import Numeric
 
 class ServiceStandard(db.Model):
-    id = db.Column(db.Integer, primary_key=True, name='service_standard_id')
+    stdid = db.Column(db.Integer, primary_key=True, name='stdid')
     sid = db.Column(db.String(10))
     ssn = db.Column(db.String(10))
     description = db.Column(db.String(255))
 
+    def to_dict(self):
+        return {
+            "stdid": self.stdid,
+            "sid": self.sid,
+            "ssn": self.ssn,
+            "description": self.description
+        }
+
 class ServiceArrangement(db.Model):
-    id = db.Column(db.Integer, primary_key=True, name='service_arrangement_id')
+    arrid = db.Column(db.Integer, primary_key=True, name='arrid')
     sid = db.Column(db.String(10))
     day = db.Column(db.String(10))
     defaultserviceperiod = db.Column(db.String(255))
@@ -16,8 +24,19 @@ class ServiceArrangement(db.Model):
     atclientlocation = db.Column(db.String(255))
     atotherlocation = db.Column(db.String(255))
 
+    def to_dict(self):
+        return {
+            "arrid": self.arrid,
+            "sid": self.sid,
+            "day": self.day,
+            "defaultserviceperiod": self.defaultserviceperiod,
+            "atservicebase": self.atservicebase,
+            "atclientlocation": self.atclientlocation,
+            "atotherlocation": self.atotherlocation
+        }
+
 class ServiceContract(db.Model):
-    id = db.Column(db.Integer, primary_key=True, name='service_contract_id')
+    conid = db.Column(db.Integer, primary_key=True, name='conid')
     sid = db.Column(db.String(10))
     servicename = db.Column(db.String(100))
     description = db.Column(db.String(255))
