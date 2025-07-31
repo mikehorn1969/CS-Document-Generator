@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import select
 import pandas as pd
 from io import BytesIO
-
+import openpyxl
 
 @app.route('/', methods=["GET", "POST"])
 def index():
@@ -321,17 +321,25 @@ def prepare_contract():
     return render_template('clientcontract.html',sid=sid)
 
 
-@app.route('/download_excel')
+@app.route('/download_excel', methods=['POST'])
 def download_excel():
     # Get session data
-    service_standards = session.get('ServiceStandards', [])
+    service_standards = session.get('serviceStandards', [])
     contract = session.get('sessionContract', {})
     arrangements = session.get('serviceArrangements', {})
+    agreement_date = request.form.get('AgreementDate', '')
 
     # Build rows
     data_rows = []
     for standard in service_standards:
-        row = {}
+        row = {"Agreement Date": agreement_date}
+
+        for c in contract:
+            if c in ['startdate', 'enddate', 'duration']:
+                row[c] = contract.get(c, '')
+            else:
+                row[c] = contract.get(c, '')
+
 
         # Flatten standard fields
         if isinstance(standard, dict):
@@ -343,12 +351,14 @@ def download_excel():
         row.update(contract)
 
         # Merge arrangement fields (optional flattening)
-        for day, values in arrangements.items():
-            if isinstance(values, dict):
-                for k, v in values.items():
-                    row[f"{day}_{k}"] = v
+        for arr in arrangements:
+            
+            if isinstance(arr, dict):
+                for k, v in arr.items():
+                    row[f"{arr['day']}_{k}"] = v
             else:
-                row[day] = values
+                row[arr['day']] = "bla"
+            #id, acl, aol, asb, day, dsp, sid
 
         data_rows.append(row)
 
