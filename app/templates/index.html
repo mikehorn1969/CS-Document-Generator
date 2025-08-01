@@ -22,9 +22,19 @@
 {% else %}
 <div>
     <form action="{{ url_for('save_sid') }}" method="post">
-        <label for="sid-input"><strong>Service ID:</strong></label>
-        <input type="text" id="sid-input" name="sid" class="sid-input"/>    
-        <input type="submit" value="Set" class="submit-btn"/>
+        <p>
+            <label for="sid-input"><strong>Enter Service ID:</strong></label>
+            <input type="text" id="sid-input" name="sid" class="sid-input"/>    
+        </p>
+        <p>Or</p>
+        <p>
+            <label for="sur-input"><strong>SP Surname:</strong></label>
+            <input type="text" id="sur-input" name="surname" class="sid-input"/>
+            (much faster)
+        </p>
+        <p>        
+            <input type="submit" value="Set" class="submit-btn"/>
+        </p>
     </form>
 </div>
 {% endif %}

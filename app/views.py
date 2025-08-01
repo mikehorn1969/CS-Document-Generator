@@ -1,7 +1,7 @@
 from app import app, db
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import  getC7candidate
+from app.c7query import  getC7candidate, searchC7Candidate
 from app.chquery import getCHRecord
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -18,14 +18,18 @@ def index():
 @app.route('/setsid', methods=["GET", "POST"])
 def save_sid():
     if request.method == 'POST':
-        sid = request.form.get('sid', '').strip()
-        if sid:
-            session['sid'] = sid.upper()  # Save Service ID to session
-            
+        sid_input = request.form.get('sid', '').strip()
+        surname_input = request.form.get('surname','').strip()
+        
+        if surname_input:
+            found_surname, found_sid = searchC7Candidate(surname_input)
+        
+            if found_surname:
+                session['candidate_surname'] = found_surname
+                session['sid'] = found_sid.upper()  # Save Service ID to session
         else:
-            error = "Please enter a valid Service ID."
-            
-    # For GET requests, render a simple form or redirect
+            session['sid'] = sid_input
+
     return redirect(url_for('index'))
 
 
@@ -47,25 +51,29 @@ def colleaguedata():
     Returns:
         Rendered HTML template 'colleague.html' with contract data context.
     """
-    
-    if request.method == "GET":
+    sid = session.get('sid')
+
+    if sid:
         # Load existing contract data if available
-        contract = {}
-        sid = session.get('sid')
+        contract = {}        
+        session_surname = session.get('candidate_surname',"")
+        
         # is there a saved contract in the session?
         saved_contract = session.get('sessionContract', {})
-        
+                
         # If not, try to load from the database
         if not saved_contract:
+            # Tech debt: legacy code, use select query instead            
             saved_contract = ContractModel.query.filter_by(sid=sid).first()    
 
         # if there is no saved contract, try to load from C7
         if not saved_contract: 
-            c7contractdata = getC7candidate(session.get('sid', ''))
+            c7contractdata = getC7candidate(session.get('sid', ''),session_surname)
             if not c7contractdata:
                 c7contractdata = {}
             else:
-                contract['sid'] = c7contractdata.get("sid", "").upper()
+                session['sid'] = c7contractdata.get("sid", "").upper()
+                contract['sid'] = session['sid']
                 contract['servicename'] = c7contractdata.get("servicename", "")
                 contract['companyaddress'] = c7contractdata.get("companyaddress", "")
                 contract['companyemail'] = c7contractdata.get("companyemail", "")
@@ -210,11 +218,11 @@ def savecolleaguedata():
                     setattr(contractdb, field, value)
 
                 # Handle dates separately         
-                start_date = contract.get("startdate", "")  # Ensure date is in YYYY-MM-DD format
-                end_date = contract.get("enddate", "") # Ensure date is in YYYY-MM-DD format  
+                #start_date = contract.get("startdate", "")  # Ensure date is in YYYY-MM-DD format
+                #end_date = contract.get("enddate", "") # Ensure date is in YYYY-MM-DD format  
                                      
-                contractdb.startdate = parse_date(start_date)
-                contractdb.enddate = parse_date(end_date)
+                contractdb.startdate = contract.get("startdate", "")
+                contractdb.enddate = end_date = contract.get("enddate", "")
                  
                 db.session.commit()
             except Exception as e:
@@ -297,21 +305,33 @@ def manage_servicearrangements():
                 row.atclientlocation = request.form.get(f'{day}_client', 'As specified')
                 row.atotherlocation = request.form.get(f'{day}_other', 'Prior approval required')
 
+        contract_stmt = select(ContractModel).where(ContractModel.sid == sid)
+        contract_record = db.session.execute(contract_stmt).scalar_one_or_none()
+        if contract_record:
+            contract_record.specialconditions = request.form.get('SpecialConditions', '').strip()
+        # Tech debt: store special conditions in session
+        session['specialConditions'] = contract_record.specialconditions if contract_record else ''
+            
         db.session.commit()
         return redirect(url_for('index'))
 
-    stmt = select(ServiceArrangement).where(ServiceArrangement.sid == sid)
+    arr_stmt = select(ServiceArrangement).where(ServiceArrangement.sid == sid)
 
     # Execute the query using session
-    results = db.session.execute(stmt).scalars().all()
+    arr_records = db.session.execute(arr_stmt).scalars().all()
 
     # Build the dictionary    
-    arrangements = {row.day: row for row in results}
+    arrangements = {row.day: row for row in arr_records}
+
+    contract_stmt = select(ContractModel).where(ContractModel.sid == sid)   
+    contract_record = db.session.execute(contract_stmt).scalar_one_or_none()
 
     # Store arrangements in session for later use
-    session['serviceArrangements'] = [s.to_dict() for s in results]
+    session['serviceArrangements'] = [s.to_dict() for s in arr_records]
+    # Tech debt: store special conditions in session
+    session['specialConditions'] = contract_record.specialconditions if contract_record else ''
     
-    return render_template('arrangements.html', arrangements=arrangements)
+    return render_template('arrangements.html', arrangements=arrangements, contract=contract_record)
 
 
 @app.route('/clientcontract', methods=['GET', 'POST'])
@@ -328,38 +348,51 @@ def download_excel():
     contract = session.get('sessionContract', {})
     arrangements = session.get('serviceArrangements', {})
     agreement_date = request.form.get('AgreementDate', '')
+    special_conditions = session.get('SpecialConditions', '').strip()
+    sid = session.get('sid', '')
 
     # Build rows
     data_rows = []
+    fields = ["companyaddress", "fees", "contactname", "contacttitle", "contactemail", "contactphone",
+              "contactaddress", "startdate", "enddate", "duration",
+              "noticeperiod", "noticeperiod_unit"]
+              
+    export_columns = ["ClientAddress", "ClientFee", "ContactName", "ContactTitle", "ContactEmail", "ContactPhone",
+                      "ContactAddress",  "ServiceStart", "ServiceEnd", "Duration",
+                      "NoticePeriod", "NoticeUOM"]
+    
+    std_fields = ["ssn", "description"]
+    std_export_columns = ["SSN", "SSDescription"]
+    
     for standard in service_standards:
-        row = {"Agreement Date": agreement_date}
+        
+        row = {'AgreementDate': agreement_date, 'ClientName': contract.get('companyname', ''),'ClientCompanyNo': contract.get('companyregistrationnumber', ''),
+               'Jurisdiction': 'England and Wales', 'ServiceID': sid, 'ServiceName': contract.get('jobtitle', ''), 'SpecialConditions': special_conditions,
+               'DMName': 'Julian Brown', 'DMTitle': 'Practice Director', 'DMEmail': 'julian.brown@changespecialists.co.uk', 'DMPhone': '07123 123456'
+               }
+        
+        # Populate row with contract fields
+        for field, column_name in zip(fields, export_columns):
+            row[column_name] = contract.get(field, '')
 
-        for c in contract:
-            if c in ['startdate', 'enddate', 'duration']:
-                row[c] = contract.get(c, '')
-            else:
-                row[c] = contract.get(c, '')
+        # add the standard fields
+        #row.update(standard)
+        for field, column_name in zip(std_fields, std_export_columns):
+            row[column_name] = standard.get(field, '')
 
-
-        # Flatten standard fields
-        if isinstance(standard, dict):
-            row.update(standard)
-        else:
-            row['standard'] = str(standard)  # fallback if it's not a dict
-
-        # Merge contract data
-        row.update(contract)
-
-        # Merge arrangement fields (optional flattening)
+        # Flatten arrangements
         for arr in arrangements:
-            
-            if isinstance(arr, dict):
-                for k, v in arr.items():
-                    row[f"{arr['day']}_{k}"] = v
-            else:
-                row[arr['day']] = "bla"
-            #id, acl, aol, asb, day, dsp, sid
-
+            day_string = arr['day'][:3]  # Get first 3 letters of the day
+            for k, v in arr.items():
+                if k == 'atclientlocation':
+                    row[f"ACL_{day_string}"] = v
+                elif k == 'atotherlocation':
+                    row[f"AOL_{day_string}"] = v
+                elif k == 'atservicebase':
+                    row[f"ASB_{day_string}"] = v
+                elif k == 'defaultserviceperiod':
+                    row[f"DSP_{day_string}"] = v
+                
         data_rows.append(row)
 
     # Create DataFrame
@@ -368,13 +401,13 @@ def download_excel():
     # Write to Excel in-memory
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Contract Export')
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
 
     output.seek(0)
     return send_file(
         output,
         as_attachment=True,
-        download_name="contract_export.xlsx",
+        download_name="MergeData.xlsx",
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
@@ -382,11 +415,23 @@ def download_excel():
 def parse_date(value: str):
     try:
         # Parse the date string
-        dt = datetime.strptime(value, "%a, %d %b %Y %H:%M:%S %Z")
-
+        
+        if len(value) >= 9:
+            dt = datetime.strptime(value, "%a, %d %b %Y %H:%M:%S %Z")
+        else:
+            dt = datetime.strptime(value, "%a, %d %b")
         # return as a date object        
         date_only = dt.date()
         return date_only
     
     except (ValueError, TypeError):
         return None
+
+
+def list_to_dict(prefix_list):
+    result = {}
+    for item in prefix_list:
+        if ": " in item:
+            key, value = item.split(": ", 1)
+            result[key] = value
+    return result

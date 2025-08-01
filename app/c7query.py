@@ -390,7 +390,37 @@ def getC7RequirementCandidates(requirementId):
         return e
 
 
-def getC7candidate(service_id):
+def searchC7Candidate(surname):
+    
+    # Tech debt: create a fixture for all this
+    if Config.find_by_name("C7 Key") is None:
+        loadConfig()
+
+    subscription_key = Config.find_by_name("C7 Key")
+    user_id = Config.find_by_name("C7 Userid")
+    headers = {
+            'Ocp-Apim-Subscription-Key': subscription_key,
+            'Cache-Control': 'no-cache'
+        }
+    C7_surname = surname.strip()
+    candidate_search_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={C7_surname}"
+    found_candidate = requests.get(candidate_search_url, headers=headers)
+    
+    if found_candidate.status_code == 200:
+        candidate_json = found_candidate.json()
+        candidate_id = candidate_json[0]
+        candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Get?UserId={user_id}&CandidateId={candidate_id}"
+        candidate_response = requests.get(candidate_url, headers=headers)
+
+        candidate_record = candidate_response.json()
+        surname_and_sid = candidate_record.get('Surname').split(":",1)
+        surname = surname_and_sid[0].strip()
+        sid = surname_and_sid[1].strip()
+
+    return(surname,sid)    
+
+
+def getC7candidate(service_id, surname):
     if Config.find_by_name("C7 Key") is None:
         loadConfig()
 
@@ -404,9 +434,11 @@ def getC7candidate(service_id):
             'Cache-Control': 'no-cache'
         }
 
-        # no wildcard search in C7, so we have to search by letter
+        target = (surname.strip(),string.ascii_uppercase)
+
+        # no wildcard search in C7, so we have to search by letter unless a (partial) surname is provided
         # this will search for all candidates with surnames starting with each letter of the alphabet
-        for letter in string.ascii_uppercase:
+        for letter in target:
             
             candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={letter}"
             candidate_search_response = requests.get(candidate_url, headers=headers)

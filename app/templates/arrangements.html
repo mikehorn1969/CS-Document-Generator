@@ -42,7 +42,9 @@
             {% endfor %}
         </tbody>
     </table>
-    <form action="/servicestandards" method="post">
+    <form action="/servicestandards" method="post">        
+        <textarea name="SpecialConditions" rows="8" cols="100" class="multi-line">{{ contract.specialconditions }}</textarea>     
+        <br>
         <button type="submit" class="">Save Changes</button>
     </form>
 </form>
