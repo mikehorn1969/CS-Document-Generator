@@ -17,18 +17,30 @@ def index():
 
 @app.route('/setsid', methods=["GET", "POST"])
 def save_sid():
+    """
+    Handles POST requests to save a candidate's Service ID (SID) and surname in the session.
+    If a surname is provided in the form data, attempts to find the candidate's surname and SID
+    using the `searchC7Candidate` function and saves them to the session if found.
+    If no surname is provided, attempts to find a contract record by SID using the `ContractModel`.
+    If found, saves the candidate's name and SID to the session.
+    Finally, redirects the user to the 'index' route.
+    """
+    
     if request.method == 'POST':
         sid_input = request.form.get('sid', '').strip()
         surname_input = request.form.get('surname','').strip()
         
         if surname_input:
             found_surname, found_sid = searchC7Candidate(surname_input)
-        #wibble
             if found_surname:
                 session['candidate_surname'] = found_surname
             if found_sid:
                 session['sid'] = found_sid.upper()  # Save Service ID to session
-        else:
+        elif sid_input:
+            contract_stmt = select(ContractModel).where(ContractModel.sid == sid_input.upper())
+            contract_record = db.session.execute(contract_stmt).scalar_one_or_none()
+            if contract_record:                
+                session['candidate_surname'] = contract_record.candidatesurname #wibble        
             session['sid'] = sid_input.upper()
 
     return redirect(url_for('index'))
@@ -53,6 +65,7 @@ def colleaguedata():
         Rendered HTML template 'colleague.html' with contract data context.
     """
     
+    contract = {}
     sid = session.get('sid') or None
     candidate_surname = session.get('candidate_surname') or None
 
@@ -126,9 +139,7 @@ def colleaguedata():
             contract['enddate'] = end_date
             contract['duration'] = duration
             session['sessionContract'] = contract
-        else:
-            contract = {}
-        
+                    
     return render_template(
         'colleague.html', contractdata=contract)
 
@@ -151,17 +162,17 @@ def savecolleaguedata():
         if 'btSave' in request.form:
             try:
                 contract = session.get('sessionContract', {})
-                #sid = session.get('sid')
-                #if not sid: 
-                #    error = "Service ID is not set in the session."
-                #    return render_template('colleague.html', contractdata=contract, error=error) 
-                
+                sid = session.get('sid')
+                contractdb = {}
                 # Try to find existing company in DB
-                contractdb = ContractModel.query.filter_by(sid=sid).first()
+                if sid:                                     
+                    contractdb = ContractModel.query.filter_by(sid=sid).first()
+
                 if not contractdb:
                     # Create new company record
+                    new_sid = contract.get("sid", "") if sid else "MSA"
                     contractdb = ContractModel( 
-                        sid = contract.get("sid", "").upper(),
+                        sid = new_sid.upper(),
                         servicename = contract.get("servicename", "") )
                     db.session.add(contractdb)
                 
@@ -192,12 +203,13 @@ def savecolleaguedata():
                     value = contract.get(field, defaults.get(field, ""))
                     setattr(contractdb, field, value)
 
-                # Handle dates separately                         
-                start_date = datetime.strptime(contract.get("startdate", ""), "%d/%m/%Y")                
-                end_date  = datetime.strptime(contract.get("enddate", ""), "%d/%m/%Y")
+                # Handle dates separately  
+                if ( contract.get("startdate") and contract.get("enddate") ):
+                    start_date = datetime.strptime(contract.get("startdate", ""), "%d/%m/%Y")                
+                    end_date  = datetime.strptime(contract.get("enddate", ""), "%d/%m/%Y")
                 
-                contractdb.startdate = start_date 
-                contractdb.enddate = end_date
+                    contractdb.startdate = start_date 
+                    contractdb.enddate = end_date
                  
                 db.session.commit()
             except Exception as e:
@@ -419,16 +431,26 @@ def download_sp_msa():
     contract = session.get('sessionContract', {})
     agreement_date = request.form.get('AgreementDate', '')
     
+    f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
+    f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+
     # Build rows
     data_rows = []
     row = {}
-    row["AgreementDate"] = agreement_date
+    row["AgreementDate"] = f_agreement_date
     fields = ["candidatename", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress"]
     
     export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress"]
     
     # Populate row with contract fields
-    for field, column_name in zip(fields, export_columns):
+    # Tech debt: handle this more elegantly
+    for raw_field, column_name in zip(fields, export_columns):
+        if raw_field == "candidatejurisdiction":
+            if column_name == "england-wales":
+                field = "England and Wales"
+        else:
+            field = raw_field
+
         row[column_name] = contract.get(field, '')
             
     data_rows.append(row)

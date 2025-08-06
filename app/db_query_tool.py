@@ -5,7 +5,10 @@ def print_service_contracts():
     contracts = ServiceContract.query.all()
     print(f"Found {len(contracts)} service contracts:")
     for c in contracts:
-        print(f"ID: {c.conid}, SID: {c.sid}, Candidate Name: {c.candidatename}, Service Name: {c.servicename}, Company: {c.companyname}")
+        #c.candidatesurname = "Agada (nee Ujege) : BRG005"
+        #db.session.commit()
+        print(f"ID: {c.conid}, SID: {c.sid}, Candidate Name: {c.candidatename}, Service Name: {c.servicename}, Company: {c.companyname}, Surname: {c.candidatesurname}")
+
 
 def print_service_standards():
     standards = ServiceStandard.query.all()

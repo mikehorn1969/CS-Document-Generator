@@ -469,8 +469,11 @@ def getC7candidate(service_id, surname):
             target = string.ascii_uppercase
 
         for letter in target:
-            
-            candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={letter}"
+            # Use surname here if it's available, much quicker!
+            if ( surname and target == surname.strip() ):
+                candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={target}"    
+            else:
+                candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={letter}"
             candidate_search_response = requests.get(candidate_url, headers=headers)
             
             # move on to next letter if no results returned
@@ -497,18 +500,9 @@ def getC7candidate(service_id, surname):
                     continue
 
                 candidate_name = f"{candidate_data.get('Forenames', '')} {candidate_data.get('Surname', '')}"
-                #AddressLine1 = candidate_data.get("AddressLine1", "")
-                #AddressLine2 = candidate_data.get("AddressLine2", "")
-                #Addressline3 = candidate_data.get("AddressLine3", "")
-                #City = candidate_data.get("City", "")
-                #Postcode = candidate_data.get("Postcode", "")
-                #RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (Addressline3 or "") + ", " + (City or "") + ", " + (Postcode or "")            
-                # Clean up candidate address: remove repeated commas and any surrounding whitespace
-                #candidate_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
-                #candidate_address = re.sub(r',+', ',', candidate_address)      # collapse multiple commas into one
-                #candidate_address = candidate_address.strip(', ').strip()      # final tidy-up
                 candidate_phone = candidate_data.get('MobileNumber', '')
                 candidate_email = candidate_data.get('EmailAddress', '')
+                candidate_surname = candidate_data.get('Surname', '')
 
                 # Find the value for CompanyRegistrationNumber
                 candidate_reg_number = next(
@@ -519,6 +513,8 @@ def getC7candidate(service_id, surname):
                     (field["Value"] for field in candidate_data["CustomFields"] if field["Name"] == "NameOfLimitedCompany"),
                         None
                     )
+                candidate_reg_number = candidate_reg_number.strip()
+                candidate_ltd_name = candidate_ltd_name.strip()
 
                 # serch Companies House API using name and company number
                 # populate registered address when a match is found
@@ -627,6 +623,7 @@ def getC7candidate(service_id, surname):
                     "candidateemail": candidate_email,   
                     "candidateltdregno": candidate_reg_number,
                     "candidateltdname": candidate_ltd_name,
+                    "candidatesurname": candidate_surname,
                     "sid": service_id,
                     "servicename": job_title,
                     "companyname": company_name,
