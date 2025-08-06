@@ -4,8 +4,8 @@ import requests, string
 from app.classes import Company, Contact, Config, Requirement, Candidate
 from app.helper import loadConfig
 import re
-from flask import session 
-
+from datetime import datetime
+from chquery import searchCH, getCHRecord
 
 def getC7Company(company_id):
     
@@ -414,13 +414,40 @@ def searchC7Candidate(surname):
 
         candidate_record = candidate_response.json()
         surname_and_sid = candidate_record.get('Surname').split(":",1)
-        surname = surname_and_sid[0].strip()
-        sid = surname_and_sid[1].strip()
+        surname = surname_and_sid[0].strip()        
+        sid = surname_and_sid[1].strip() if len(surname_and_sid) > 1 else None
 
     return(surname,sid)    
 
 
 def getC7candidate(service_id, surname):
+    
+    job_title = None
+    company_name = None
+    company_address = None
+    company_email = None
+    company_phone = None    
+    company_number = None
+    contact_name = None
+    contact_address = None
+    contact_email = None
+    contact_phone = None
+    contact_title = None
+    job_title = None
+    f_start_date = None 
+    f_end_date = None
+    notice_period = None
+    notice_period_unit = None
+    fees = None
+    charges = None
+    candidate_id = None
+    candidate_name = None
+    description = None
+    companyId = None
+    contactId = None
+    requirement_id = None
+    experience_placement_id = None                                
+
     if Config.find_by_name("C7 Key") is None:
         loadConfig()
 
@@ -428,21 +455,25 @@ def getC7candidate(service_id, surname):
     user_id = Config.find_by_name("C7 Userid")
 
     try:
-        SEARCH_TERM = service_id.lower()
+        SEARCH_TERM = service_id.upper() if service_id else surname.strip()
         headers = {
             'Ocp-Apim-Subscription-Key': subscription_key,
             'Cache-Control': 'no-cache'
         }
 
-        target = (surname.strip(),string.ascii_uppercase)
-
         # no wildcard search in C7, so we have to search by letter unless a (partial) surname is provided
         # this will search for all candidates with surnames starting with each letter of the alphabet
+        if surname:
+            target = surname.strip()
+        else:
+            target = string.ascii_uppercase
+
         for letter in target:
             
             candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={letter}"
             candidate_search_response = requests.get(candidate_url, headers=headers)
             
+            # move on to next letter if no results returned
             if candidate_search_response.status_code != 200:
                 continue
             
@@ -453,24 +484,31 @@ def getC7candidate(service_id, surname):
                 candidate_id = candidate
                 candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Get?UserId={user_id}&CandidateId={candidate_id}"
                 candidate_response = requests.get(candidate_url, headers=headers)
+                
+                # move on to next candidate if no record found - very unlikely?
                 if candidate_response.status_code != 200:
                     continue
                 
                 candidate_data = candidate_response.json()
-                if SEARCH_TERM not in candidate_data.get('Surname', '').lower():
+
+                # SEARCH_TERM is either SID or SP surname, both should be in the candidate surname field for an active placement, so either will match
+                # move on to next candidate if no match
+                if SEARCH_TERM not in candidate_data.get('Surname', ''):
                     continue
 
                 candidate_name = f"{candidate_data.get('Forenames', '')} {candidate_data.get('Surname', '')}"
-                AddressLine1 = candidate_data.get("AddressLine1", "")
-                AddressLine2 = candidate_data.get("AddressLine2", "")
-                Addressline3 = candidate_data.get("AddressLine3", "")
-                City = candidate_data.get("City", "")
-                Postcode = candidate_data.get("Postcode", "")
-                RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (Addressline3 or "") + ", " + (City or "") + ", " + (Postcode or "")            
-                # Clean up: remove repeated commas and any surrounding whitespace
-                candidate_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
-                candidate_address = re.sub(r',+', ',', candidate_address)      # collapse multiple commas into one
-                candidate_address = candidate_address.strip(', ').strip()      # final tidy-up
+                #AddressLine1 = candidate_data.get("AddressLine1", "")
+                #AddressLine2 = candidate_data.get("AddressLine2", "")
+                #Addressline3 = candidate_data.get("AddressLine3", "")
+                #City = candidate_data.get("City", "")
+                #Postcode = candidate_data.get("Postcode", "")
+                #RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (Addressline3 or "") + ", " + (City or "") + ", " + (Postcode or "")            
+                # Clean up candidate address: remove repeated commas and any surrounding whitespace
+                #candidate_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
+                #candidate_address = re.sub(r',+', ',', candidate_address)      # collapse multiple commas into one
+                #candidate_address = candidate_address.strip(', ').strip()      # final tidy-up
+                candidate_phone = candidate_data.get('MobileNumber', '')
+                candidate_email = candidate_data.get('EmailAddress', '')
 
                 # Find the value for CompanyRegistrationNumber
                 candidate_reg_number = next(
@@ -481,44 +519,73 @@ def getC7candidate(service_id, surname):
                     (field["Value"] for field in candidate_data["CustomFields"] if field["Name"] == "NameOfLimitedCompany"),
                         None
                     )
-                
+
+                # serch Companies House API using name and company number
+                # populate registered address when a match is found
+                ch_result = searchCH(candidate_ltd_name)
+
+                for key, value in ch_result.items():
+                    if key == "items":
+                        for item in value:
+                            if (
+                                item.get('title') == candidate_ltd_name.upper() and
+                                item.get('company_number') == candidate_reg_number
+                            ):
+                                candidate_address = item.get('address_snippet')
+
+                # Use company number to get jurisdiction from CH record
+                company_record = getCHRecord(candidate_reg_number)
+
+                for key, value in company_record.items():
+                    if key == "jurisdiction":
+                        candidate_jurisdiction = value
+
                 # Get candidate experience   
                 experience_url = f"https://coll7openapi.azure-api.net/api/Candidate/GetExperience?UserId={user_id}&CandidateId={candidate_id}"
                 candidate_experience = requests.get(experience_url, headers=headers)
                 
+                # move on to the next experience if no result - unlikely ?
                 if candidate_experience.status_code != 200:
                     continue
                 
                 experience_results = candidate_experience.json()
                 
+                # loop through candidate experience records
                 for experience in experience_results:
                     
                     experience_placement_id = experience.get('placementId', 0)                    
                     
+                    # 0 = none CS placement, skip these
                     if experience_placement_id == 0:
                         continue
                     
                     job_title = experience.get('placementJobTitle', '')
                     company_name = experience.get('placementCompanyName', '')
 
-                    # debugging
-                    #if "bellrock" not in company_name.lower():
-                    #    continue    
-                    
+                    # find requirements that match company & job title
                     requirement_url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&JobTitle={job_title}"
                     requirements = requests.get(requirement_url, headers=headers)
                     
+                    # move to next experience if requirement not found
                     if requirements.status_code != 200:
                         continue
                     
                     requirement_result = requirements.json()                    
                     
+                    # loop through requirements that match company & job title
                     for requirement in requirement_result:
                         
-                        requirment_placement_id = requirement.get('MostRecentPlacementId', 0)
+                        # if the requirement most recent placement ID matches the experience placement id, then we have found our requirement
+                        if requirement.get('MostRecentPlacementId', 0) == experience_placement_id:
                         
-                        if requirment_placement_id == experience_placement_id:
-                        
+                            notice_period = experience.get('noticePeriod', 0)
+                            notice_period_unit = experience.get('noticePeriodUOM', '')
+                            fees = experience.get('placementPayRate', 0.0)
+                            charges = experience.get('placementChargeRate', 0.0)
+                            description = requirement.get('JobTitleAndDescription', '')
+                            requirement_id = requirement.get('requirementId', 0)
+
+                            # get company data
                             companyId = requirement.get('companyId', '')
                             company_url = f"https://coll7openapi.azure-api.net/api/Company/Get?UserId={user_id}&CompanyId={companyId}"
                             company_response = requests.get(company_url, headers=headers)
@@ -530,50 +597,66 @@ def getC7candidate(service_id, surname):
                                 company_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
                                 company_address = re.sub(r',+', ',', company_address)       # collapse multiple commas into one
                                 company_address = company_address.strip(', ').strip()       # final tidy-up
-                                contactId = requirement.get('contactId', '')
-                                contact_url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contactId}"
-                                contact_response = requests.get(contact_url, headers=headers)
+                                company_email = company_data.get("CompanyEmail", "")
+                                company_phone = company_data.get("TelephoneNumber", "") 
+                                company_number = company_data.get("RegistrationNumber", "")
+                                
+                            # get company contact data
+                            contactId = requirement.get('contactId', '')
+                            contact_url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contactId}"
+                            contact_response = requests.get(contact_url, headers=headers)
                             
                             if contact_response.status_code == 200:
                                 contact_data = contact_response.json()
-                                                            
-                            # Return as JSON
-                            return {
-                                "sid": session.get('sid', ''),
-                                "servicename": requirement.get('JobTitleAndDescription', ''),
-                                "companyname": company_name,
-                                "companyaddress": company_address,
-                                "companyemail": company_data.get("CompanyEmail", ""),
-                                "companyphone": company_data.get("TelephoneNumber", ""),    
-                                "companynumber": company_data.get("RegistrationNumber", ""),
-                                "contactname": (contact_data.get("FullName") or ""),
-                                "contactaddress": (contact_data.get("Address") or ""),
-                                "contactemail": contact_data.get("EmailAddress", ""),
-                                "contactphone": contact_data.get("ContactNumber", ""),
-                                "contacttitle": contact_data.get("JobTitle", ""),
-                                "jobyitle": job_title,
-                                "startdate": experience.get('placementStartDate', '')[:10], # Ensure date is in YYYY-MM-DD format
-                                "enddate": experience.get('placementEndDate', '')[:10], # Ensure date is in YYYY-MM-DD format
-                                "companyname": company_data.get('CompanyName', ''),
-                                "noticeperiod": experience.get('noticePeriod', 0),
-                                "noticeperiodunit": experience.get('noticePeriodUOM', ''),
-                                "fees": experience.get('placementPayRate', 0.0),
-                                "feecurrency": "GBP",
-                                "charges": experience.get('placementChargeRate', 0.0),
-                                "chargecurrency": "GBP",  
-                                "candidateid": candidate_id,
-                                "candidatename": candidate_name,
-                                "description": requirement.get('JobTitleAndDescription', ''),
-                                "companyid": companyId,
-                                "contactid": contactId,
-                                "requirementid": requirement.get('requirementId', 0),
-                                "placementid": experience_placement_id,                                
-                                "candidateaddress": candidate_address,
-                                "candidatephone": candidate_data.get('MobileNumber', ''),
-                                "candidateemail": candidate_data.get('EmailAddress', ''),   
-                                "candidateltdregno": candidate_reg_number,
-                                "candidateltdname": candidate_ltd_name 
-                            }
+                                contact_name = (contact_data.get("FullName") or "")
+                                contact_address = (contact_data.get("Address") or "")
+                                contact_email = contact_data.get("EmailAddress", "")
+                                contact_phone = contact_data.get("ContactNumber", "")
+                                contact_title = contact_data.get("JobTitle", "")
+
+                            # Ensure placement dates are in YYYY-MM-DD format
+                            start_date = datetime.strptime(experience.get('placementStartDate', '')[:10], "%Y-%m-%d")
+                            f_start_date = start_date.strftime("%d/%m/%Y")
+                            end_date = datetime.strptime(experience.get('placementEndDate', '')[:10], "%Y-%m-%d")
+                            f_end_date = end_date.strftime("%d/%m/%Y")
+
+                # Return gathered data as JSON
+                return {
+                    "candidateaddress": candidate_address,
+                    "candidatephone": candidate_phone,
+                    "candidateemail": candidate_email,   
+                    "candidateltdregno": candidate_reg_number,
+                    "candidateltdname": candidate_ltd_name,
+                    "sid": service_id,
+                    "servicename": job_title,
+                    "companyname": company_name,
+                    "companyaddress": company_address,
+                    "companyemail": company_email,
+                    "companyphone": company_phone,    
+                    "companynumber": company_number,
+                    "contactname": contact_name,
+                    "contactaddress": contact_address,
+                    "contactemail": contact_email,
+                    "contactphone": contact_phone,
+                    "contacttitle": contact_title,
+                    "jobtitle": job_title,
+                    "startdate": f_start_date, 
+                    "enddate": f_end_date,
+                    "noticeperiod": notice_period,
+                    "noticeperiodunit": notice_period_unit,
+                    "fees": fees,
+                    "feecurrency": "GBP",
+                    "charges": charges,
+                    "chargecurrency": "GBP",  
+                    "candidateid": candidate_id,
+                    "candidatename": candidate_name,
+                    "candidatejurisdiction": candidate_jurisdiction,
+                    "description": description,
+                    "companyid": companyId,
+                    "contactid": contactId,
+                    "requirementid": requirement_id,
+                    "placementid": experience_placement_id                                
+                }
         return None
 
     except Exception as e:

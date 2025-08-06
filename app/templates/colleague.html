@@ -13,9 +13,9 @@
 <div style="display: grid; grid-template-columns: 1fr 3fr; gap: 32px;">
     <!-- Left Column: Inputs and Buttons -->
     <div>
-        {% if session['sid'] %}
+        {% if session['sid'] or session['candidate_surname'] %}
             <p><strong>Service ID:</strong> {{ session['sid'] }}<p>
-            
+            <p><strong>SP surname:</strong> {{ session['candidate_surname']}}</p>            
             <form action="/savecolleaguedata" method="post">
                 <input type="submit" value="Save" name="btSave" class="submit-btn"/>
             </form>
@@ -30,13 +30,21 @@
 
     <!-- Right Column: ServiceContract Data -->
     <div>
-        {% if session['sid'] %}            
+        {% if session['sid'] or session['candidate_surname'] %}            
             {% if contractdata %}
                 <h2>Service Contract Data</h2>
                 
                     <textarea readonly rows="20" cols="80" class="datagrid">
 Service ID: {{ contractdata['sid'] }}
 Service Name: {{ contractdata['servicename'] }}
+
+Candidate Name: {{ contractdata['candidatename'] }}
+Candidate Address: {{ contractdata['candidateaddress'] }}
+Candidate Email: {{ contractdata['candidateemail'] }}
+Candidate Phone: {{ contractdata['candidatephone'] }}
+Candidate Ltd Company Name: {{ contractdata['candidateltdname'] }}
+Candidate Ltd Company Registration Number: {{ contractdata['candidateltdregno'] }}
+Candidate Ltd Company Jurisdiction: {{ contractdata['candidatejurisdiction'] }}
 
 Client Name: {{ contractdata['companyname'] }}
 Client Address: {{ contractdata['companyaddress'] }}
@@ -61,13 +69,6 @@ Contract Rate: {{ contractdata['fees'] }}
 Rate Currency: {{ contractdata['feecurrency'] }}
 Client Charges: {{ contractdata['charges'] }}
 Charge Currency: {{ contractdata['chargecurrency'] }}
-
-Candidate Name: {{ contractdata['candidatename'] }}
-Candidate Address: {{ contractdata['candidateaddress'] }}
-Candidate Email: {{ contractdata['candidateemail'] }}
-Candidate Phone: {{ contractdata['candidatephone'] }}
-Candidate Ltd Company Name: {{ contractdata['candidateltdname'] }}
-Candidate Ltd Company Registration Number: {{ contractdata['candidateltdregno'] }}
 
 C7 Requirement ID: {{ contractdata['requirementid'] }}
 C7 Candidate ID: {{ contractdata['candidateid'] }}

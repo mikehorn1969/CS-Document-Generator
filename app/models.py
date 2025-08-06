@@ -47,6 +47,7 @@ class ServiceContract(db.Model):
     companyid = db.Column(db.Integer)
     companyname = db.Column(db.String(255))
     companyregistrationnumber = db.Column(db.String(50))
+    companyjurisdiction = db.Column(db.String(50))
     companyaddress = db.Column(db.String(255))
     companyphone = db.Column(db.String(50)) 
     companyemail = db.Column(db.String(100))
@@ -76,7 +77,9 @@ class ServiceContract(db.Model):
     candidatephone = db.Column(db.String(50))
     candidateltdname = db.Column(db.String(100))
     candidateltdregno = db.Column(db.String(50))
+    candidatejurisdiction = db.Column(db.String(50))
     jobtitle = db.Column(db.String(100))
+    
     
     
 

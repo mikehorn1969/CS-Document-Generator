@@ -11,10 +11,11 @@
 <h1>Home</h1>
 
 <!-- Service ID -->
-{% if session['sid'] %}
+{% if session['sid'] or session['candidate_surname'] %}
     <div>
         <form action="clearsession" method="get">
-            <strong>Service ID:</strong> {{ session['sid'] }} 
+            <p><strong>Service ID:</strong> {{ session['sid'] }} </p>
+            <p><strong>SP surname:</strong> {{ session['candidate_surname']}}</p>
             <input type="submit" value="RESET" class="reset-btn"/>
         </form>
     </div>
@@ -30,7 +31,7 @@
         <p>
             <label for="sur-input"><strong>SP Surname:</strong></label>
             <input type="text" id="sur-input" name="surname" class="sid-input"/>
-            (much faster)
+            (much faster) 
         </p>
         <p>        
             <input type="submit" value="Set" class="submit-btn"/>
@@ -39,7 +40,6 @@
 </div>
 {% endif %}
 <br>
-
 <div> 
     <form action="colleaguedata" method="get">
         {% if session['sessionContract'] %}
@@ -47,6 +47,10 @@
         {% else %}
             <input type="submit" value="Colleague Data" class="submit-btn"/>
         {% endif %}        
+    </form>
+    <br>
+    <form action="spmsa" method="get">
+        <input type="submit" value="Prepare service provider MSA" class="submit-btn"/>
     </form>
     <br>
     <form action="servicestandards" method="get">
@@ -67,7 +71,7 @@
     <br>
     <form action="clientcontract" method="get">
         {% if session['sessionContract'] and session['serviceStandards'] and session['serviceArrangements']  %}
-            <input type="submit" value="Prepare client contract" class="submit-btn"/>
+            <input type="submit" value="Prepare client contract" class="submit-btn"/>            
         {% endif %}
         
     </form>

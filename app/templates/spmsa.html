@@ -6,16 +6,9 @@
 
 {% block content %}
 
-<h1>Service Standards</h1>
+<h1>Candidate MSA</h1>
 
-{% if session['sid'] %}
-    <div>
-        <strong>Service ID:</strong> {{ session['sid'] }}
-    </div>
-    <br>
-{% endif %}
-
-<form action="/download_client_contract" method="post">
+<form action="/download_sp_msa" method="post">
 
     <input type="date" name="AgreementDate" placeholder="Agreement Date" required>
     <input type="submit" class="submit-btn" id="submit-btn" value="Submit">
