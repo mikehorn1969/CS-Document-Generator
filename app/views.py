@@ -8,7 +8,10 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import select
 import pandas as pd
 from io import BytesIO
-import openpyxl
+from openpyxl import load_workbook
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.utils import get_column_letter
+
 
 @app.route('/', methods=["GET", "POST"])
 def index():
@@ -410,10 +413,29 @@ def download_client_contract():
         df.to_excel(writer, index=False, sheet_name='Sheet1')
 
     output.seek(0)
+    wb = load_workbook(output)
+    ws = wb['Sheet1']
+
+    # add table
+    df_rows = len(df) + 1
+    df_cols = len(df.columns)
+    df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
+
+    table1 = Table(displayName="Table1", ref=df_range)
+    table1.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
+    )
+    ws.add_table(table1)
+
+    # Save final output
+    final_output = BytesIO()
+    wb.save(final_output)
+    final_output.seek(0)
+    
     return send_file(
-        output,
+        final_output,
         as_attachment=True,
-        download_name=f"{sid} Client conctract data.xlsx",
+        download_name=f"{sid} Client contract data.xlsx",
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
@@ -442,16 +464,15 @@ def download_sp_msa():
     
     export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress"]
     
-    # Populate row with contract fields
-    # Tech debt: handle this more elegantly
+    # Populate row with contract fields    
+    # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
-        if raw_field == "candidatejurisdiction":
-            if column_name == "england-wales":
-                field = "England and Wales"
+        if ( raw_field == "candidatejurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
+            field = "England and Wales"
         else:
-            field = raw_field
+            field = contract.get(raw_field, '')
 
-        row[column_name] = contract.get(field, '')
+        row[column_name] = field
             
     data_rows.append(row)
 
@@ -464,8 +485,27 @@ def download_sp_msa():
         df.to_excel(writer, index=False, sheet_name='Sheet1')
 
     output.seek(0)
+    wb = load_workbook(output)
+    ws = wb['Sheet1']
+
+    # add table
+    df_rows = len(df) + 1
+    df_cols = len(df.columns)
+    df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
+
+    table1 = Table(displayName="Table1", ref=df_range)
+    table1.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
+    )
+    ws.add_table(table1)
+
+    # Save final output
+    final_output = BytesIO()
+    wb.save(final_output)
+    final_output.seek(0)
+
     return send_file(
-        output,
+        final_output,
         as_attachment=True,
         download_name=f"{contract.get('candidateltdname')} Service Provider MSA.xlsx",
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
