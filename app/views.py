@@ -349,34 +349,57 @@ def download_client_contract():
     contract = session.get('sessionContract', {})
     arrangements = session.get('serviceArrangements', {})
     agreement_date = request.form.get('AgreementDate', '')
+    
+    f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
+    f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+
     special_conditions = session.get('specialConditions', '').strip()
     sid = session.get('sid', '')
 
     # Build rows
     data_rows = []
-    fields = ["companyaddress", "charges", "contactname", "contacttitle", "contactemail", "contactphone",
-              "contactaddress", "startdate", "enddate", "duration",
+    row = {}
+    row['AgreementDate'] = f_agreement_date
+
+    # Populate row with contract fields
+    # making any neccessary substituions
+    fields = ["companyname", "companyaddress", "companyjurisdiction", "companyregistrationnumber", 
+              "sid", "servicename", "charges", 
+              "contactname", "contacttitle", "contactemail", "contactphone", "contactaddress", 
+              "startdate", "enddate", "duration", 
               "noticeperiod", "noticeperiod_unit"]
-              
-    export_columns = ["ClientAddress", "ClientCharge", "ContactName", "ContactTitle", "ContactEmail", "ContactPhone",
-                      "ContactAddress",  "ServiceStart", "ServiceEnd", "Duration",
+
+    export_columns = ["ClientName", "ClientAddress", "Jursidiction" ,"ClientCompanyNo"
+                      "ServiceID", "ServiceName", "ClientCharge", 
+                      "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
+                      "ServiceStart", "ServiceEnd", "Duration", 
                       "NoticePeriod", "NoticeUOM"]
     
+    for raw_field, column_name in zip(fields, export_columns):
+        if ( raw_field == "companyjurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
+            field = "England and Wales"
+        else:
+            field = contract.get(raw_field, '')
+        # Tech debt: hard coded AD details
+        if (raw_field == "dmname" ):
+            field = "Julian Brown"
+        if (raw_field == "dmtitle" ):
+            field = "Practice Director"
+        if (raw_field == "dmemail" ):
+            field = "julian.brown@changespecialists.co.uk"
+        if (raw_field == "dmphone" ):
+            field = "07123 123456"    
+
+        row[column_name] = field
+
+    row["specialconditions"] = special_conditions
+
     std_fields = ["ssn", "description"]
     std_export_columns = ["SSN", "SSDescription"]
     
-    #for standard in service_standards:
+    # Flatten service standards
     for i in range(10):
-        
-        row = {'AgreementDate': agreement_date, 'ClientName': contract.get('companyname', ''),'ClientCompanyNo': contract.get('companyregistrationnumber', ''),
-               'Jurisdiction': 'England and Wales', 'ServiceID': sid, 'ServiceName': contract.get('jobtitle', ''), 'SpecialConditions': special_conditions,
-               'DMName': 'Julian Brown', 'DMTitle': 'Practice Director', 'DMEmail': 'julian.brown@changespecialists.co.uk', 'DMPhone': '07123 123456'
-               }
-        
-        # Populate row with contract fields
-        for field, column_name in zip(fields, export_columns):
-            row[column_name] = contract.get(field, '')
-
+                
         # add the standard fields
         if i < len(service_standards):
             standard = service_standards[i]        
@@ -384,25 +407,27 @@ def download_client_contract():
             standard = {}
 
         for field, column_name in zip(std_fields, std_export_columns):
-            if standard:
-                row[column_name] = standard.get(field, '')
-            else:
-                row[column_name] = ''
+            f_column_name = f"{column_name}{i}"
 
-        # Flatten arrangements
-        for arr in arrangements:
-            day_string = arr['day'][:3]  # Get first 3 letters of the day
-            for k, v in arr.items():
-                if k == 'atclientlocation':
-                    row[f"ACL_{day_string}"] = v
-                elif k == 'atotherlocation':
-                    row[f"AOL_{day_string}"] = v
-                elif k == 'atservicebase':
-                    row[f"ASB_{day_string}"] = v
-                elif k == 'defaultserviceperiod':
-                    row[f"DSP_{day_string}"] = v
+            if standard:
+                row[f_column_name] = standard.get(field, '')
+            else:
+                row[f_column_name] = ''
+
+    # Flatten arrangements
+    for arr in arrangements:
+        day_string = arr['day'][:3]  # Get first 3 letters of the day
+        for k, v in arr.items():
+            if k == 'atclientlocation':
+                row[f"ACL_{day_string}"] = v
+            elif k == 'atotherlocation':
+                row[f"AOL_{day_string}"] = v
+            elif k == 'atservicebase':
+                row[f"ASB_{day_string}"] = v
+            elif k == 'defaultserviceperiod':
+                row[f"DSP_{day_string}"] = v
                 
-        data_rows.append(row)
+    data_rows.append(row)
 
     # Create DataFrame
     df = pd.DataFrame(data_rows)

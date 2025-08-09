@@ -71,3 +71,7 @@ th, td {
 .multi-line {
     text-align: justify; 
 }
+
+h1 {
+    font-family: "Roboto", Sans-serif;
+}

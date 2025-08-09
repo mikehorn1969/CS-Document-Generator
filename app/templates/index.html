@@ -8,7 +8,9 @@
 
 {% block content %}
 
-<h1>Home</h1>
+<h1>Contract Generator</h1>
+
+
 
 <!-- Service ID -->
 {% if session['sid'] or session['candidate_surname'] %}
@@ -40,41 +42,43 @@
 </div>
 {% endif %}
 <br>
-<div> 
-    <form action="colleaguedata" method="get">
-        {% if session['sessionContract'] %}
-            <input type="submit" value="Colleague Data" class="add-btn"/>
-        {% else %}
-            <input type="submit" value="Colleague Data" class="submit-btn"/>
-        {% endif %}        
-    </form>
-    <br>
-    <form action="spmsa" method="get">
-        <input type="submit" value="Prepare service provider MSA" class="submit-btn"/>
-    </form>
-    <br>
-    <form action="servicestandards" method="get">
-        {% if session['serviceStandards'] %}
-            <input type="submit" value="Service Standards" class="add-btn"/>
-        {% else %}
-            <input type="submit" value="Service Standards" class="submit-btn"/>
-        {% endif %}
-    </form>
-    <br>
-    <form action="servicearrangements" method="get">
-        {% if session['serviceArrangements'] %}
-            <input type="submit" value="Service Arrangements" class="add-btn"/>
-        {% else %}
-            <input type="submit" value="Service Arrangements" class="submit-btn"/>
-        {% endif %}        
-    </form>
-    <br>
-    <form action="clientcontract" method="get">
+<div style="display: grid; grid-template-columns: 1fr 3fr; gap: 32px;"> 
+    <div>
+        <form action="colleaguedata" method="get">
+            {% if session['sessionContract'] %}
+                <input type="submit" value="Colleague Data" class="add-btn"/>
+            {% else %}
+                <input type="submit" value="Colleague Data" class="submit-btn"/>
+            {% endif %}        
+        </form>
+        <br>
+        <form action="servicestandards" method="get">
+            {% if session['serviceStandards'] %}
+                <input type="submit" value="Service Standards" class="add-btn"/>
+            {% else %}
+                <input type="submit" value="Service Standards" class="submit-btn"/>
+            {% endif %}
+        </form>
+        <br>
+        <form action="servicearrangements" method="get">
+            {% if session['serviceArrangements'] %}
+                <input type="submit" value="Service Arrangements" class="add-btn"/>
+            {% else %}
+                <input type="submit" value="Service Arrangements" class="submit-btn"/>
+            {% endif %}        
+        </form>        
+    </div>
+    <div>
+        <form action="spmsa" method="get">
+            <input type="submit" value="Prepare service provider MSA" class="submit-btn"/>
+        </form>
         {% if session['sessionContract'] and session['serviceStandards'] and session['serviceArrangements']  %}
-            <input type="submit" value="Prepare client contract" class="submit-btn"/>            
-        {% endif %}
-        
-    </form>
+            <br>
+            <form action="clientcontract" method="get">
+                <input type="submit" value="Prepare client contract" class="submit-btn"/>                        
+            </form>
+        {% endif %}        
+    </div>
 </div>
 
 {% endblock %}

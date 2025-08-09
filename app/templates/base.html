@@ -3,10 +3,12 @@
         {% block head %}
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
         <title>{% block title %}{% endblock %}</title>
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='media/logos/CS www logo.png') }}">
         {% endblock %}
     </head>
 
     <body>
+        <img src="{{ url_for('static', filename='media/logos/CS Colour Logo (orange wording).png') }}" alt="CS Logo" style="width:224px;height:38px">
         <div id="content">{% block content %}{% endblock %}</div>
         <div id="footer">
             {% block footer %}
