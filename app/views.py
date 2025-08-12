@@ -392,7 +392,7 @@ def download_client_contract():
 
         row[column_name] = field
 
-    row["specialconditions"] = special_conditions
+    row["SpecialConditions"] = special_conditions
 
     std_fields = ["ssn", "description"]
     std_export_columns = ["SSN", "SSDescription"]
@@ -419,13 +419,13 @@ def download_client_contract():
         day_string = arr['day'][:3]  # Get first 3 letters of the day
         for k, v in arr.items():
             if k == 'atclientlocation':
-                row[f"ACL_{day_string}"] = v
+                row[f"ACL{day_string}"] = v
             elif k == 'atotherlocation':
-                row[f"AOL_{day_string}"] = v
+                row[f"AOL{day_string}"] = v
             elif k == 'atservicebase':
-                row[f"ASB_{day_string}"] = v
+                row[f"ASB{day_string}"] = v
             elif k == 'defaultserviceperiod':
-                row[f"DSP_{day_string}"] = v
+                row[f"DSP{day_string}"] = v
                 
     data_rows.append(row)
 

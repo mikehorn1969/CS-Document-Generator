@@ -5,7 +5,7 @@ from app.classes import Company, Contact, Config, Requirement, Candidate
 from app.helper import loadConfig
 import re
 from datetime import datetime
-from chquery import searchCH, getCHRecord
+from chquery import searchCH, getCHRecord, validateCH
 
 def getC7Company(company_id):
     
@@ -513,6 +513,7 @@ def getC7candidate(service_id, surname):
                     (field["Value"] for field in candidate_data["CustomFields"] if field["Name"] == "NameOfLimitedCompany"),
                         None
                     )
+                # Tech debt: duplicate code shoud be refactored to a CH function
                 candidate_reg_number = candidate_reg_number.strip()
                 candidate_ltd_name = candidate_ltd_name.strip()
 
@@ -596,7 +597,9 @@ def getC7candidate(service_id, surname):
                                 company_email = company_data.get("CompanyEmail", "")
                                 company_phone = company_data.get("TelephoneNumber", "") 
                                 company_number = company_data.get("RegistrationNumber", "")
-                                
+
+                            ch_result = validateCH(company_number, company_name)
+                               
                             # get company contact data
                             contactId = requirement.get('contactId', '')
                             contact_url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contactId}"
