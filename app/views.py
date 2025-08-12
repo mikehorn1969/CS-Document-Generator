@@ -537,6 +537,10 @@ def download_sp_msa():
     )
 
 
+@app.route('/newcandidate', methods=['GET', 'POST'])
+def new_candidate():
+    return render_template('newcandidate.html')
+
 def parse_date(value: str):
     try:
         # Parse the date string

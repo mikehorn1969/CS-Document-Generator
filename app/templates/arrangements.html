@@ -42,10 +42,15 @@
             {% endfor %}
         </tbody>
     </table>
-    <form action="/servicestandards" method="post">        
-        <textarea name="SpecialConditions" rows="8" cols="100" class="multi-line">{{ contract.specialconditions }}</textarea>     
+    <form action="/servicestandards" method="post">   
+        <label for="SpecialConditions" class="index-label"><strong>Special conditions</strong></label>    
+        <div>
+            <textarea name="SpecialConditions" rows="8" cols="100" class="multi-line">{{ contract.specialconditions }}</textarea>     
+        </div> 
         <br>
-        <button type="submit" class="">Save Changes</button>
+        <button type="submit" class="button">Save Changes</button>
+        <a href="{{ url_for('index') }}" class="button">Back</a>
+        
     </form>
 </form>
 

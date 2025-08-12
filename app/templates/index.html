@@ -18,7 +18,7 @@
         <form action="clearsession" method="get">
             <p><strong>Service ID:</strong> {{ session['sid'] }} </p>
             <p><strong>SP surname:</strong> {{ session['candidate_surname']}}</p>
-            <input type="submit" value="RESET" class="reset-btn"/>
+            <input type="submit" value="RESET" id="reset-btn" class="button"/>
         </form>
     </div>
     <br>
@@ -26,17 +26,20 @@
 <div>
     <form action="{{ url_for('save_sid') }}" method="post">
         <p>
-            <label for="sid-input"><strong>Enter Service ID:</strong></label>
-            <input type="text" id="sid-input" name="sid" class="sid-input"/>    
+            <label for="sid" class="index-label"><strong>Service ID</strong></label>
+            <div>
+                <input type="text" id="sid-input" name="sid" class="index-textbox"/>    
+            </div>
         </p>
         <p>Or</p>
         <p>
-            <label for="sur-input"><strong>SP Surname:</strong></label>
-            <input type="text" id="sur-input" name="surname" class="sid-input"/>
-            (much faster) 
+            <label for="sur-input"><strong>SP Surname</strong></label>
+            <div>
+                <input type="text" id="sur-input" name="surname" class="index-textbox"/>            
+            </div>
         </p>
         <p>        
-            <input type="submit" value="Set" class="submit-btn"/>
+            <input type="submit" value="Set" id="submit-btn" class="button"/>
         </p>
     </form>
 </div>
@@ -46,36 +49,40 @@
     <div>
         <form action="colleaguedata" method="get">
             {% if session['sessionContract'] %}
-                <input type="submit" value="Colleague Data" class="add-btn"/>
+                <input type="submit" value="Colleague Data" id="add-btn" class="button"/>
             {% else %}
-                <input type="submit" value="Colleague Data" class="submit-btn"/>
+                <input type="submit" value="Colleague Data" id="submit-btn" class="button"/>
             {% endif %}        
         </form>
         <br>
         <form action="servicestandards" method="get">
             {% if session['serviceStandards'] %}
-                <input type="submit" value="Service Standards" class="add-btn"/>
+                <input type="submit" value="Service Standards" id="add-btn" class="button"/>
             {% else %}
-                <input type="submit" value="Service Standards" class="submit-btn"/>
+                <input type="submit" value="Service Standards" id="submit-btn" class="button"/>
             {% endif %}
         </form>
         <br>
         <form action="servicearrangements" method="get">
             {% if session['serviceArrangements'] %}
-                <input type="submit" value="Service Arrangements" class="add-btn"/>
+                <input type="submit" value="Service Arrangements" id="add-btn" class="button"/>
             {% else %}
-                <input type="submit" value="Service Arrangements" class="submit-btn"/>
+                <input type="submit" value="Service Arrangements" id="submit-btn" class="button"/>
             {% endif %}        
         </form>        
     </div>
     <div>
         <form action="spmsa" method="get">
-            <input type="submit" value="Prepare service provider MSA" class="submit-btn"/>
+            <input type="submit" value="Existing Candidate MSA" id="submit-btn" class="button"/>
+        </form>
+        <br>
+        <form action="newcandidate" method="get">
+            <input type="submit" value="New Candidate & MSA" id="submit-btn" class="button"/>
         </form>
         {% if session['sessionContract'] and session['serviceStandards'] and session['serviceArrangements']  %}
             <br>
             <form action="clientcontract" method="get">
-                <input type="submit" value="Prepare client contract" class="submit-btn"/>                        
+                <input type="submit" value="Prepare client contract" id="submit-btn" class="button"/>                        
             </form>
         {% endif %}        
     </div>

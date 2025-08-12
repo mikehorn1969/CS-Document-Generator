@@ -1,3 +1,12 @@
+html * {
+    font-family: "Roboto", Sans-serif;
+    
+}
+
+h1 {    
+    color: #000;
+}
+
 #colleague {
     display: grid;
     grid-template-rows: repeat(2, 1fr);
@@ -27,36 +36,23 @@ th, td {
     padding: 8px;
     border: 1px solid #ccc;
 }
-.remove-btn {
-    padding: 4px 8px;
-    background-color: #e74c3c;
-    color: white;
-    border: none;
-    cursor: pointer;
+
+.index-textbox {
+    background-color:#fff ;
+    font-size: 16px;  
 }
-.add-btn {
-    margin-bottom: 10px;
-    padding: 6px 12px;
-    background-color: #2ecc71;
-    color: white;
-    border: none;
-    cursor: pointer;
+
+.index-label {
+    font-size: 16px;  
 }
-.submit-btn {
-    margin-bottom: 10px;
-    padding: 6px 12px;
-    background-color: #2c4bd4;
+
+.button {
+    border-radius: 4px;
+    background-color: #F28E24;
+    padding: 15px 30px;
+    border-radius: 4xp;  
+    font-size: 16px;  
     color: white;
-    border: none;
-    cursor: pointer;
-}
-.reset-btn {
-    margin-bottom: 10px;
-    padding: 6px 12px;
-    background-color: #e74c3c;
-    color: white;
-    border: none;
-    cursor: pointer;
 }
 
 #service-col1 {
@@ -72,6 +68,3 @@ th, td {
     text-align: justify; 
 }
 
-h1 {
-    font-family: "Roboto", Sans-serif;
-}

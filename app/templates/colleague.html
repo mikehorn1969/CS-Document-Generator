@@ -17,14 +17,15 @@
             <p><strong>Service ID:</strong> {{ session['sid'] }}<p>
             <p><strong>SP surname:</strong> {{ session['candidate_surname']}}</p>            
             <form action="/savecolleaguedata" method="post">
-                <input type="submit" value="Save" name="btSave" class="submit-btn"/>
+                <input type="submit" value="Save" name="btSave" class="button"/>            
+                <a href="{{ url_for('index') }}" class="button">Back</a>
             </form>
         {% else %}
             <p>Please set a Service ID to view or edit data.</p>
 
             <form action="/" method="get">
-                <input type="submit" value="Back" name="btBack" class="submit-btn"/>
-            </form>
+                <input type="submit" value="Back" name="btBack" class="button"/>
+            </form>            
         {% endif %}
     </div>
 
