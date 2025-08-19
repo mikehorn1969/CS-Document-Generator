@@ -194,7 +194,6 @@ def getC7Clients():
 
         # Extract desired fields
         # companyname, name, address, emailaddress, phone, title    
-        companies = []
         for item in response_json:
             AddressLine1 = item.get("AddressLine1", "")
             AddressLine2 = item.get("AddressLine2", "")
@@ -213,16 +212,7 @@ def getC7Clients():
             # create a new Company instance
             new_contact = Company(CompanyName, CompanyAddress, CompanyEmail, TelephoneNumber, RegistrationNumber)
 
-            companies.append({
-                "CompanyId": CompanyId,
-                "CompanyName": CompanyName,
-                "CompanyAddress": CompanyAddress,
-                "CompanyEmail": CompanyEmail,                
-                "CompanyPhone": TelephoneNumber,
-                "CompanyNumber": RegistrationNumber
-            })
-
-        return companies
+        return Company.get_all_companies()        
 
     except Exception as e:
         return e
@@ -248,7 +238,7 @@ def getContactsByCompany(CompanyName):
             "userId": user_id,
             "allColumns": False,
             "columns": ["ContactId", "CompanyName", "Forenames", "Surname", "AddressLine1", "AddressLine2", "AddressLine3", 
-                        "City", "Postcode", "EmailAddress", "TelephoneNumber", "Title"],
+                        "City", "Postcode", "EmailAddress", "ContactNumber", "Title"],
             "includeArchived": False,
             "parameters": [{
                 "fieldName": "CompanyName",
@@ -271,7 +261,7 @@ def getContactsByCompany(CompanyName):
             City = item.get("City", "")
             Postcode = item.get("Postcode", "")
             EmailAddress = item.get("EmailAddress", "")
-            TelephoneNumber = item.get("TelephoneNumber", "")
+            TelephoneNumber = item.get("ContactNumber", "")
             Title = item.get("Title", "")
 
             ContactName = (Forenames or "") + " " + (Surname  or "")

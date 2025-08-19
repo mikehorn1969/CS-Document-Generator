@@ -1,9 +1,9 @@
 from app import app, db
 from flask import Flask, abort, render_template, request, redirect, url_for, session, send_file, flash, jsonify
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import  getC7candidate, searchC7Candidate
+from app.c7query import  getC7candidate, searchC7Candidate, getC7Clients, getContactsByCompany
 from app.chquery import validateCH, searchCH, getCHRecord
-from app.classes import Config
+from app.classes import Config, Company
 from app.helper import loadConfig, formatName
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -23,10 +23,25 @@ def index():
     return render_template('index.html', sid=session.get('sid', ''))
 
 
-@app.route('/search')
-def search():
+@app.route('/searchcandidates')
+def search_candidates():
     q = request.args.get("q", "").strip()
-    results = fetch_options_from_api(q)
+    results = fetch_candidates(q)
+    return jsonify(results)
+
+
+@app.route('/searchclients')
+def search_clients():
+    q = request.args.get("q", "").strip()
+    results = fetch_clients(q)
+    return jsonify(results)
+
+
+@app.route('/searchcontacts')
+def search_contacts():
+    qclient = request.args.get('client','').strip()
+    qcontact = request.args.get("q", "").strip()
+    results = fetch_contacts(qclient,qcontact)
     return jsonify(results)
 
 
@@ -573,6 +588,99 @@ def download_sp_msa():
     )
 
 
+@app.route('/clientmsa', methods=['GET', 'POST'])
+def prepare_client_msa():
+    return render_template('clientmsa.html')
+
+
+@app.route('/download_client_msa', methods=['POST'])
+def download_client_msa():
+        
+    # Get session data
+    contract = session.get('sessionContract', {})
+    agreement_date = request.form.get('AgreementDate', '')
+
+    if agreement_date == '':
+        flash("Please select an agreement date.", "error")
+        return redirect(url_for('prepare_client_msa'))
+    
+    f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
+    f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+
+    # Build rows
+    data_rows = []
+    row = {}
+    row["AgreementDate"] = f_agreement_date
+    fields = ["candidatename", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress"]
+    
+    export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress"]
+    
+    # Populate row with contract fields    
+    # making any neccessary substitutions
+    for raw_field, column_name in zip(fields, export_columns):
+        if ( raw_field == "candidatejurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
+            field = "England and Wales"
+        elif ( raw_field == "candidatename" ):
+            field = formatName(contract.get(raw_field,''))
+        else:
+            field = contract.get(raw_field, '')
+
+        row[column_name] = field
+            
+    data_rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(data_rows)
+
+    # Write to Excel in-memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+
+    output.seek(0)
+    wb = load_workbook(output)
+    ws = wb['Sheet1']
+
+    # add table
+    df_rows = len(df) + 1
+    df_cols = len(df.columns)
+    df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
+
+    table1 = Table(displayName="Table1", ref=df_range)
+    table1.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
+    )
+    ws.add_table(table1)
+
+    # Save final output
+    final_output = BytesIO()
+    wb.save(final_output)
+    final_output.seek(0)
+
+    return send_file(
+        final_output,
+        as_attachment=True,
+        download_name=f"{contract.get('candidateltdname')} Client MSA.xlsx",
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    
+
+@app.route('/chfetch', methods=['POST'])
+def get_company_number():
+    ltd_name = request.form.get('clientname','')
+    data = {}
+    if ltd_name:
+        ch_result = searchCH(ltd_name)
+        items = ch_result.get("items", [])
+        match = next((item for item in items if item.get('title') == ltd_name.upper()), None)
+        if match:
+            data = {
+                "regnumber": match.get("company_number", ""),
+                "address": match.get("address_snippet", "")
+            }
+    return jsonify(data)
+    
+
 # --- Tiny in-memory cache to reduce API calls while typing ---
 CACHE_TTL = 60  # seconds
 _cache: dict[str, tuple[float, List[str]]] = {}
@@ -593,7 +701,7 @@ def _cache_set(q: str, data: List[str]) -> None:
     _cache[q] = (time.time(), data)
 
 
-def fetch_options_from_api(query: str) -> List[str]:
+def fetch_candidates(query: str) -> List[str]:
     """
     Call the upstream API and normalise into a list of strings.
     """
@@ -627,9 +735,6 @@ def fetch_options_from_api(query: str) -> List[str]:
     except:        
         return []
     
-    if len(payload) == 0:
-        return[]
-
     # Normalise to list[str] — tweak this for your API’s schema
     results: List[str] = []
     
@@ -654,6 +759,71 @@ def fetch_options_from_api(query: str) -> List[str]:
     return results
 
 
+def fetch_clients(query: str) -> List[str]:
+    """
+    Normalise clients into a list of strings.
+    """
+    if not query:
+        return []
+
+    # Check cache first
+    qkey = query.lower().strip()
+    cached = _cache_get(qkey)
+    if cached is not None:
+        return cached
+
+    payload = []
+    if Company.count() == 0:
+        payload = getC7Clients()
+    else:
+        payload = Company.get_all_companies()
+    
+    if len(payload) == 0:
+        return[]
+
+    results: List[str] = []
+
+    for client in payload:
+        if client.companyname.lower().startswith(qkey):
+            results.append(client.companyname)
+
+    # Update cache
+    _cache_set(qkey, results)
+    return results
+
+
+def fetch_contacts(qclient: str, qcontact: str) -> List[str]:
+    """
+    Normalise clients into a list of strings.
+    """
+    if not qclient:
+        return []
+
+    # Check cache first
+    qkey = qcontact.lower().strip()
+    cached = _cache_get(qkey)
+    if cached is not None:
+        return cached
+
+    payload = getContactsByCompany(qclient)
+    
+    if len(payload) == 0:
+        return[]
+
+    results: List[str] = []
+
+    for clientcontact in payload:     
+        contact_data = {}
+        if clientcontact.get("ContactName", "").lower().startswith(qkey):   
+            contact_data["ContactName"] = clientcontact.get("ContactName", "")
+            contact_data["ContactEmail"] = clientcontact.get("ContactEmail", "")
+            contact_data["ContactPhone"] = clientcontact.get("ContactPhone", "")
+            results.append(contact_data)
+
+    # Update cache
+    _cache_set(qkey, results)
+    return results
+
 def parse_date(value: str):
     try:
         # Parse the date string
@@ -677,3 +847,10 @@ def list_to_dict(prefix_list):
             key, value = item.split(": ", 1)
             result[key] = value
     return result
+
+@app.route('/validate_ch', methods=['POST'])
+def validate_ch():
+    company_number = request.form.get('company_number', '')
+    company_name = request.form.get('company_name', '')    
+    result = validateCH(company_number, company_name)
+    return jsonify(result)

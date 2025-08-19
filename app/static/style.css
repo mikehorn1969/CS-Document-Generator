@@ -7,6 +7,10 @@ h1 {
     color: #000;
 }
 
+div {
+    margin-bottom: 10px;
+}
+
 #colleague {
     display: grid;
     grid-template-rows: repeat(2, 1fr);
@@ -67,6 +71,12 @@ th, td {
     color: white;
 }
 
+.small-button {
+    border-radius: 2px;
+    background-color: #F28E24;    
+    color: white;
+}
+
 #service-col1 {
     width: 10%;
 }
@@ -80,3 +90,13 @@ th, td {
     text-align: justify; 
 }
 
+.c7grid {
+    display: grid; 
+    grid-template-columns: 2fr 2fr 2fr; 
+    gap: 32px;
+}
+.clientgrid {
+    display: grid; 
+    grid-template-columns: 2fr 4fr; 
+    gap: 32px;
+}

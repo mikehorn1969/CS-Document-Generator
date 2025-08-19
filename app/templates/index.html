@@ -12,7 +12,7 @@
 
     <h1>Document Generator</h1>
 
-    <div style="display: grid; grid-template-columns: 2fr 4fr; gap: 32px;"> 
+    <div class="c7grid"> 
         <div> <!-- column 1 - search combo -->
             <!-- Service ID -->
             <!-- Tech debt: do we need to duplicate the entire block or can we be smarter with action and button only? --> 
@@ -29,10 +29,10 @@
             {% else %}        
             <form action="setsid" method="post">
                 <label for="sid" class="index-label"><strong>Service Provider</strong></label>
-                <p>
+                <div>
                     <input type="text" id="sid" name="sid" placeholder="Type a candidate surname..." autocomplete="off" class="name-textbox">
                         <div id="suggestions"></div>
-                </p>
+                </div>
             
                 <input type="submit" value="Set" id="submit-btn" class="button"/>
             
@@ -40,35 +40,48 @@
             {% endif %}   
         </div>
         
-        <div> <!-- column 2 - control buttons -->
-            <form action="colleaguedata" method="get">
-                {% if session['sessionContract'] %}
-                    <input type="submit" value="Colleague Data" id="add-btn" class="button"/>
-                {% else %}
-                    <input type="submit" value="Colleague Data" id="submit-btn" class="button"/>
-                {% endif %}        
-            </form>
-            <br>
-            <form action="servicestandards" method="get">
-                {% if session['serviceStandards'] %}
-                    <input type="submit" value="Service Standards" id="add-btn" class="button"/>
-                {% else %}
-                    <input type="submit" value="Service Standards" id="submit-btn" class="button"/>
-                {% endif %}
-            </form>
-            <br>
-            <form action="servicearrangements" method="get">                
-                    <input type="submit" value="Service Arrangements" id="submit-btn" class="button"/>                    
-            </form>        
-            <br>  
-            <form action="spmsa" method="get">
-                <input type="submit" value="Candidate MSA" id="submit-btn" class="button"/>
-            </form>
-            <br>            
-            <form action="clientcontract" method="get">
-                <input type="submit" value="Client contract" id="submit-btn" class="button"/>                        
-            </form>            
+        <div> <!-- column 2 - data views -->
+            <div>
+                <form action="colleaguedata" method="get">
+                    {% if session['sessionContract'] %}
+                        <input type="submit" value="Colleague Data" id="add-btn" class="button"/>
+                    {% else %}
+                        <input type="submit" value="Colleague Data" id="submit-btn" class="button"/>
+                    {% endif %}        
+                </form>
+            </div>
+            <div>
+                <form action="servicestandards" method="get">
+                    {% if session['serviceStandards'] %}
+                        <input type="submit" value="Service Standards" id="add-btn" class="button"/>
+                    {% else %}
+                        <input type="submit" value="Service Standards" id="submit-btn" class="button"/>
+                    {% endif %}
+                </form>
+            </div>
+            <div>
+                <form action="servicearrangements" method="get">                
+                        <input type="submit" value="Service Arrangements" id="submit-btn" class="button"/>                    
+                </form>        
+            </div>
         </div>
+        <div> <!-- column 3 - documents -->
+            <div>  
+                <form action="clientmsa" method="get">
+                    <input type="submit" value="Client MSA" id="submit-btn" class="button"/>
+                </form>
+            </div>              
+            <div>  
+                <form action="spmsa" method="get">
+                    <input type="submit" value="Candidate MSA" id="submit-btn" class="button"/>
+                </form>
+            </div>    
+            <div>       
+                <form action="clientcontract" method="get">
+                    <input type="submit" value="Client contract" id="submit-btn" class="button"/>                        
+                </form>
+            </div>            
+        </div>    
     </div>
 
     {% with messages = get_flashed_messages(category_filter=['error']) %}
@@ -87,7 +100,7 @@
             $("#sid").on("input", function() {
                 let query = $(this).val();
                 if (query.length > 0) {
-                    $.getJSON("/search", { q: query }, function(data) {
+                    $.getJSON("/searchcandidates", { q: query }, function(data) {
                         let suggestions = $("#suggestions");
                         suggestions.empty();
                         data.forEach(function(item) {

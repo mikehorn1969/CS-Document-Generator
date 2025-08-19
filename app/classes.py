@@ -35,9 +35,8 @@ class Company:
 
     @classmethod
     def count(cls):
-        print(f"Company count: {cls.counter}")
+        return cls.counter
 
-    
     @classmethod
     def find_by(cls, field, value):
         for search_company in cls._instances:
