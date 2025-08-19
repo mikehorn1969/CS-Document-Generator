@@ -1,8 +1,10 @@
 from app import app, db
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask import Flask, abort, render_template, request, redirect, url_for, session, send_file, flash, jsonify
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
 from app.c7query import  getC7candidate, searchC7Candidate
-from app.chquery import searchCH
+from app.chquery import validateCH, searchCH, getCHRecord
+from app.classes import Config
+from app.helper import loadConfig, formatName
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import select
@@ -11,11 +13,21 @@ from io import BytesIO
 from openpyxl import load_workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
+import requests
+import time
+from typing import List
 
 
 @app.route('/', methods=["GET", "POST"])
 def index():
     return render_template('index.html', sid=session.get('sid', ''))
+
+
+@app.route('/search')
+def search():
+    q = request.args.get("q", "").strip()
+    results = fetch_options_from_api(q)
+    return jsonify(results)
 
 
 @app.route('/setsid', methods=["GET", "POST"])
@@ -29,27 +41,21 @@ def save_sid():
     Finally, redirects the user to the 'index' route.
     """
     
-    if request.method == 'POST':
-        sid_input = request.form.get('sid', '').strip()
-        surname_input = request.form.get('surname','').strip()
+    if request.method == 'POST':        
+        session['candidate_search_string'] = request.form.get('sid','')
+        surname_input = request.form.get('sid','').strip().split(",")[0]
+        split_string = surname_input.split(":")
+        sid_input = split_string[1].strip() if len(split_string) > 1 else ""
         
         if surname_input:
-            found_surname, found_sid = searchC7Candidate(surname_input)
-            if found_surname:
-                session['candidate_surname'] = found_surname
-            if found_sid:
-                session['sid'] = found_sid.upper()  # Save Service ID to session
-        elif sid_input:
-            contract_stmt = select(ContractModel).where(ContractModel.sid == sid_input.upper())
-            contract_record = db.session.execute(contract_stmt).scalar_one_or_none()
-            if contract_record:                
-                session['candidate_surname'] = contract_record.candidatesurname #wibble        
-            session['sid'] = sid_input.upper()
-
+            session['candidate_surname'] = surname_input
+        if sid_input:
+            session['sid'] = sid_input.upper()  # Save Service ID to session
+          
     return redirect(url_for('index'))
 
 
-@app.route('/clearsession', methods=["GET"])
+@app.route('/clearsession', methods=["POST"])
 def clear_session():
     session.clear()
     return redirect(url_for('index'))
@@ -76,14 +82,16 @@ def colleaguedata():
         # Load existing contract data if available
         contract = {}        
         c7contractdata = getC7candidate(sid,candidate_surname)
+
         if c7contractdata:                   
             contract['sid'] = c7contractdata.get("sid", "")
             contract['servicename'] = c7contractdata.get("servicename", "")
             contract['companyaddress'] = c7contractdata.get("companyaddress", "")
             contract['companyemail'] = c7contractdata.get("companyemail", "")
             contract['companyphone'] = c7contractdata.get("companyphone", "")
-            contract['companyregistrationnumber'] = c7contractdata.get("companynumber", "")
             contract['companyname'] = c7contractdata.get("companyname", "")
+            contract['companyregistrationnumber'] = c7contractdata.get("companynumber", "")            
+            contract['companyjurisdiction'] = c7contractdata.get("companyjurisdiction","")
             contract['contactname'] = c7contractdata.get("contactname", "")
             contract['contactaddress'] = c7contractdata.get("contactaddress", "")
             contract['contactemail'] = c7contractdata.get("contactemail", "")
@@ -110,6 +118,7 @@ def colleaguedata():
             contract['contactid'] = c7contractdata.get("contactid", 0)  
             contract['noticeperiod'] = 4 # Default to 4 weeks, can be changed later
             contract['noticeperiod_unit'] = "weeks"  # Default to weeks, can be changed later
+            
             
             start_date = c7contractdata.get("startdate", "")
             end_date = c7contractdata.get("enddate", "")
@@ -166,6 +175,26 @@ def savecolleaguedata():
             try:
                 contract = session.get('sessionContract', {})
                 sid = session.get('sid')
+
+                # validate data against CH records
+                # 1. Candidate
+                ch_candidatename = contract.get("candidatename").split("(")
+                ch_candidatename = ch_candidatename[0]
+                ch_result = validateCH(contract.get("candidateltdregno"), contract.get("candidateltdname"), ch_candidatename)
+
+                if not ch_result.get("Valid", False):
+                    # Show pop-up on next render and stop here
+                    flash(ch_result.get("Narrative",""), "error")
+                    return redirect(url_for("colleaguedata"))
+
+                # 2. Client
+                ch_result = validateCH(contract.get("companyregistrationnumber"), contract.get("companyname"))
+
+                if not ch_result.get("Valid", False):
+                    # Show pop-up on next render and stop here
+                    flash(ch_result.get("Narrative",""), "error")
+                    return redirect(url_for("colleaguedata"))
+
                 contractdb = {}
                 # Try to find existing company in DB
                 if sid:                                     
@@ -180,9 +209,10 @@ def savecolleaguedata():
                     db.session.add(contractdb)
                 
                 # Update existing record using contract dictionary 
-                fields = ["companyaddress", "companyemail", "companyphone", "companyregistrationnumber",
-                          "companyname", "contactname", "contactaddress", "contactemail", "contactphone",
-                          "contacttitle", "jobtitle", "charges", "chargecurrency", "charges", "chargecurrency",
+                fields = ["companyname", "companyaddress", "companyemail", "companyphone", "companyregistrationnumber", "companyjurisdiction",
+                          "sid", "servicename",
+                          "contactname", "contactaddress", "contactemail", "contactphone", "contacttitle", 
+                          "jobtitle", "charges", "chargecurrency", 
                           "requirementid", "candidateid", "placementid", "candidatename", "candidateaddress", "candidateemail",
                           "candidatephone", "candidateltdname", "candidateltdregno", "candidatejurisdiction", "description", "companyid",
                           "contactid", "noticeperiod", "noticeperiod_unit", "duration"
@@ -303,18 +333,19 @@ def manage_servicearrangements():
                 row.atclientlocation = request.form.get(f'{day}_client', 'As specified')
                 row.atotherlocation = request.form.get(f'{day}_other', 'Prior approval required')
 
-        contract_stmt = select(ContractModel).where(ContractModel.sid == sid)
-        contract_record = db.session.execute(contract_stmt).scalar_one_or_none()
-        
-        contract_record.specialconditions = request.form.get('SpecialConditions', '').strip()
-        # Tech debt: store special conditions in session
-        session['specialConditions'] = contract_record.specialconditions if contract_record else ''
-            
+        raw = request.form.get('SpecialConditions')
+        specialconditions = raw.strip() if isinstance(raw, str) else ''
+
+        contract_record = db.session.scalar(
+            select(ContractModel).where(ContractModel.sid == sid)
+        )
+        if contract_record is None:
+            abort(404, f"No contract found for sid={sid!r}")
+
+        contract_record.specialconditions = specialconditions
         db.session.commit()
 
-        
-        # Tech debt: store special conditions in session
-        session['specialConditions'] = contract_record.specialconditions if contract_record else ''
+        session['specialConditions'] = specialconditions
 
         return redirect(url_for('index'))
 
@@ -369,15 +400,18 @@ def download_client_contract():
               "startdate", "enddate", "duration", 
               "noticeperiod", "noticeperiod_unit"]
 
-    export_columns = ["ClientName", "ClientAddress", "Jursidiction" ,"ClientCompanyNo"
+    export_columns = ["ClientName", "ClientAddress", "Jursidiction", "ClientCompanyNo",                       
                       "ServiceID", "ServiceName", "ClientCharge", 
                       "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
                       "ServiceStart", "ServiceEnd", "Duration", 
                       "NoticePeriod", "NoticeUOM"]
     
     for raw_field, column_name in zip(fields, export_columns):
-        if ( raw_field == "companyjurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
-            field = "England and Wales"
+
+        if raw_field == "companyjurisdiction":
+            tmp_field = contract.get(raw_field,"")
+            if tmp_field.strip().lower() == "england-wales":
+                field = "England and Wales"
         else:
             field = contract.get(raw_field, '')
         # Tech debt: hard coded AD details
@@ -494,6 +528,8 @@ def download_sp_msa():
     for raw_field, column_name in zip(fields, export_columns):
         if ( raw_field == "candidatejurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
             field = "England and Wales"
+        elif ( raw_field == "candidatename" ):
+            field = formatName(contract.get(raw_field,''))
         else:
             field = contract.get(raw_field, '')
 
@@ -537,9 +573,86 @@ def download_sp_msa():
     )
 
 
-@app.route('/newcandidate', methods=['GET', 'POST'])
-def new_candidate():
-    return render_template('newcandidate.html')
+# --- Tiny in-memory cache to reduce API calls while typing ---
+CACHE_TTL = 60  # seconds
+_cache: dict[str, tuple[float, List[str]]] = {}
+
+
+def _cache_get(q: str) -> List[str] | None:
+    now = time.time()
+    if q in _cache:
+        ts, data = _cache[q]
+        if now - ts <= CACHE_TTL:
+            return data
+        else:
+            _cache.pop(q, None)
+    return None
+
+
+def _cache_set(q: str, data: List[str]) -> None:
+    _cache[q] = (time.time(), data)
+
+
+def fetch_options_from_api(query: str) -> List[str]:
+    """
+    Call the upstream API and normalise into a list of strings.
+    """
+    if not query:
+        return []
+
+    # Check cache first
+    qkey = query.lower().strip()
+    cached = _cache_get(qkey)
+    if cached is not None:
+        return cached
+
+    # load config
+    if Config.find_by_name("C7 Key") is None:
+        loadConfig()
+
+    subscription_key = Config.find_by_name("C7 Key")
+    user_id = Config.find_by_name("C7 Userid")
+    headers = {
+            'Ocp-Apim-Subscription-Key': subscription_key,
+            'Cache-Control': 'no-cache'
+        }
+
+    # Build request
+    payload = []
+    try:
+        candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={query}"            
+        candidate_search_response = requests.get(candidate_url, headers=headers)                   
+        if candidate_search_response.status_code == 200:
+            payload = candidate_search_response.json()
+    except:        
+        return []
+    
+    if len(payload) == 0:
+        return[]
+
+    # Normalise to list[str] — tweak this for your API’s schema
+    results: List[str] = []
+    
+    for candidate_id in payload:
+                
+        candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Get?UserId={user_id}&CandidateId={candidate_id}"
+        candidate_response = requests.get(candidate_url, headers=headers)
+                
+        # move on to next candidate if no record found - very unlikely?
+        if candidate_response.status_code != 200:
+            continue
+
+        candidate_data = candidate_response.json()
+        
+        surname = candidate_data.get("Surname","")
+        forenames = candidate_data.get("Forenames","")
+        candidate_name = f"{surname}, {forenames}"
+        results.append(candidate_name)
+
+    # Update cache
+    _cache_set(qkey, results)
+    return results
+
 
 def parse_date(value: str):
     try:

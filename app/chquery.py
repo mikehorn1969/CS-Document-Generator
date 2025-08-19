@@ -1,6 +1,9 @@
+from __future__ import annotations
 import requests
 from app.classes import Config
-from app.helper import loadConfig
+from app.helper import loadConfig, formatName
+from typing import Optional, Dict, Any
+
 
 def getCHRecord(companyNo):
 
@@ -42,24 +45,129 @@ def searchCH(companyName):
         raise Exception(f"Error: {response.status_code} - {response.text}")
     
 
-def validateCH(ch_number, ch_name, director ):
+def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Validate a Companies House entry and (optionally) confirm a director.
+    Returns a dict with keys: Valid, Narrative, CompanyNumber, Is Director, Director, Jurisdiction, Status.
+    """
 
+    # --- helpers -------------------------------------------------------------
+    def make_result(*, valid: bool, narrative: str = "", is_director: bool = False,
+                    jurisdiction: Optional[str] = None, status: Optional[str] = None) -> Dict[str, Any]:
+        return {
+            "Valid": valid,
+            "Narrative": narrative,
+            "CompanyNumber": reg_number,
+            "Address": reg_address,
+            "Is Director": is_director,
+            "Director": director,
+            "Jurisdiction": jurisdiction,
+            "Status": status,
+        }
+
+    def fmt_officer_name(raw: str) -> Optional[str]:
+        # CH officer names look like "SURNAME, FORENAMES"
+        raw = (raw or "").strip().upper()
+        if not raw or "," not in raw:
+            return None
+        surname, forenames = [p.strip() for p in raw.split(",", 1)]
+        if not forenames:
+            return None
+        first_forename = forenames.split()[0]
+        return f"{first_forename} {surname}"
+
+    # --- config / inputs -----------------------------------------------------
     if Config.find_by_name("CH Key") is None:
         loadConfig()
-        
-    subscription_key = Config.find_by_name("CH Key")
 
+    subscription_key = Config.find_by_name("CH Key")
     if not subscription_key:
         raise ValueError("API key not found in config file.")
 
-    reg_number = ch_number.strip()
-    ltd_name = ch_name.strip()
-    is_valid = False
-    is_Director = False
-    search_director = director.upper()
+    reg_number = ch_number.strip() if ch_number else ""
+    ltd_name_input = ch_name.strip() if ch_name else ""
+    ltd_name_upper = ltd_name_input.upper()
+    reg_address = ""
+    director_input = director.strip().upper() if director else None
     
-    # serch Companies House API using name and company number
-    # populate registered address when a match is found
+
+
+    # --- 1) find the company by name + number -------------------------------
+    ch_result = searchCH(ltd_name_input)
+    items = ch_result.get("items", [])
+
+    match = next(
+        (
+            item for item in items
+            if item.get("title", "").upper() == ltd_name_upper
+            and item.get("company_number") == reg_number
+        ),
+        None,
+    )
+
+    if not match:
+        return make_result(
+            valid=False,
+            narrative=(f"Company {ch_name} not found with registered number {ch_number}. Check number. Check spelling of name; is the company filed as LTD or LIMITED?")
+        )
+
+    reg_address = match.get("address_snippet")
+
+    # --- 2) pull full record and check status -------------------------------
+    company_record = getCHRecord(reg_number)
+    jurisdiction = company_record.get("jurisdiction")
+    company_status = company_record.get("company_status")
+
+    if company_status != "active":
+        return make_result(valid=False, narrative=f"{ch_name} is not Active", jurisdiction=jurisdiction, status=company_status)
+
+    # --- 3) if a director is supplied, verify they are an active director ----
+
+    if director_input:
+
+        search_director = formatName(director_input) 
+
+        officers_url = f"https://api.companieshouse.gov.uk/company/{reg_number}/officers"
+        resp = requests.get(officers_url, auth=(subscription_key, ""))
+        resp.raise_for_status()
+        officers_json = resp.json()
+
+        is_director = False
+        for item in officers_json.get("items", []):
+            if item.get("resigned_on"):
+                continue
+            if item.get("officer_role") != "director":
+                continue
+            formatted = fmt_officer_name(item.get("name", ""))
+            if formatted is None:
+                # name in unexpected format; just skip it
+                continue
+            # CH search results often include middle names but they are not held in C7. Use 'in' for best chance of a match    
+            if search_director in formatted:
+                is_director = True
+                break
+
+        if not is_director:
+            return make_result(
+                valid=False,
+                narrative=f"{search_director} not listed as a director of {ch_name}",
+                jurisdiction=jurisdiction,
+                status=company_status,
+            )
+
+        # found matching active director – fall through to success
+        return make_result(valid=True, narrative="", is_director=True, jurisdiction=jurisdiction, status=company_status)
+
+    # --- success (no director check requested) ------------------------------
+    return make_result(valid=True, narrative="", is_director=False, jurisdiction=jurisdiction, status=company_status)
+
+
+def getCHbasics(ltd_name, reg_number):
+    """
+    returns registered address and jurisdiction 
+    """
+    return_address = ""
+    return_jurisdiction = ""
     ch_result = searchCH(ltd_name)
 
     for key, value in ch_result.items():
@@ -69,66 +177,24 @@ def validateCH(ch_number, ch_name, director ):
                     item.get('title') == ltd_name.upper() and
                     item.get('company_number') == reg_number
                 ):
-                    is_valid = True
-                    reg_address = item.get('address_snippet')
+                    return_address = item.get('address_snippet')
 
-    # Use company number to get full CH record
+    # Use company number to get jurisdiction from CH record
     company_record = getCHRecord(reg_number)
 
-    #	Company is ‘active’     
-    
     for key, value in company_record.items():
         if key == "jurisdiction":
-            jurisdiction = value
-        if key == "company_status":
-            company_status = value
-        
-    
-    #	Confirm that the person in question is a Director 
-    
-    officers_url = f"https://api.companieshouse.gov.uk/company/{ch_number}/officers"
-    officers = requests.get(officers_url, auth=(subscription_key,""))
-    officers_json = officers.json()
+            return_jurisdiction = value
 
-    for item in officers_json.get("items", []):
-        if item.get("resigned_on"):
-            continue
-        if item.get("officer_role") == "director":
-            # CH names look like "SURNAME, FORENAMES"
-            raw = item.get("name", "").strip().upper()
-            try:
-                surname, forenames = [p.strip() for p in raw.split(",", 1)]
-                forename = forenames.split()[0]
-                found_officer = f"{forename} {surname}"
-            except ValueError:
-                continue  # name in unexpected format; skip
-            if found_officer == search_director:
-                officer_name = found_officer
-                is_Director = True
-                break
-
-    #	Review any warning notices eg. late filing     
-    
-    #warnings_url = f"https://api.companieshouse.gov.uk/company/{companyNo}/filing-history"
-    #warnings = requests.get(warnings_url, auth=(subscription_key,""))
-
-    return {"Valid": is_valid,
-            "CompanyNumber": reg_number,
-            "Is Director": is_Director,
-            "Director": director,
-            "Jurisdiction": jurisdiction,
-            "Status": company_status
-
-
-    }
+    return return_address, return_jurisdiction
 
 
 if __name__ == '__main__':
 
     company_number = "08320269"   
-    company_name = "CHANGE SPECIALISTS LTD"
+    company_name = "CHANGE SPECIALISTS LIMITED"
 
-    result = validateCH(company_number, company_name, "John Dean")
+    result = validateCH(company_number, company_name)
     
     for key, value in result.items():        
         print(key, ":", value)

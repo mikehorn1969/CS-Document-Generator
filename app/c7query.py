@@ -5,7 +5,7 @@ from app.classes import Company, Contact, Config, Requirement, Candidate
 from app.helper import loadConfig
 import re
 from datetime import datetime
-from chquery import searchCH, getCHRecord, validateCH
+from chquery import searchCH, getCHRecord, getCHbasics 
 
 def getC7Company(company_id):
     
@@ -519,24 +519,12 @@ def getC7candidate(service_id, surname):
 
                 # serch Companies House API using name and company number
                 # populate registered address when a match is found
-                ch_result = searchCH(candidate_ltd_name)
-
-                for key, value in ch_result.items():
-                    if key == "items":
-                        for item in value:
-                            if (
-                                item.get('title') == candidate_ltd_name.upper() and
-                                item.get('company_number') == candidate_reg_number
-                            ):
-                                candidate_address = item.get('address_snippet')
-
-                # Use company number to get jurisdiction from CH record
-                company_record = getCHRecord(candidate_reg_number)
-
-                for key, value in company_record.items():
-                    if key == "jurisdiction":
-                        candidate_jurisdiction = value
-
+                if ( candidate_ltd_name and candidate_reg_number):
+                    candidate_address, candidate_jurisdiction = getCHbasics(candidate_ltd_name, candidate_reg_number)
+                else:
+                    candidate_address = ""
+                    candidate_jurisdiction = "england-wales"
+                
                 # Get candidate experience   
                 experience_url = f"https://coll7openapi.azure-api.net/api/Candidate/GetExperience?UserId={user_id}&CandidateId={candidate_id}"
                 candidate_experience = requests.get(experience_url, headers=headers)
@@ -589,17 +577,33 @@ def getC7candidate(service_id, surname):
                         
                             if company_response.status_code == 200:
                                 company_data = company_response.json()                                
-                                RawAddress = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
-                                # Clean up: remove repeated commas and any surrounding whitespace
-                                company_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
-                                company_address = re.sub(r',+', ',', company_address)       # collapse multiple commas into one
-                                company_address = company_address.strip(', ').strip()       # final tidy-up
+                                
                                 company_email = company_data.get("CompanyEmail", "")
                                 company_phone = company_data.get("TelephoneNumber", "") 
                                 company_number = company_data.get("RegistrationNumber", "")
 
-                            ch_result = validateCH(company_number, company_name)
-                               
+                                # serch Companies House API using name and company number (fetch company number from CH if it's missing) 
+                                # populate registered address when a match is found
+                                if company_number == None:
+                                    ch_result = searchCH(company_name)
+                                    for key, value in ch_result.items():
+                                        if key == "items":
+                                            for item in value:
+                                                if ( item.get('title') == company_name.upper() ):
+                                                   company_number = item.get('company_number')
+
+                                company_jurisdiction = ""
+                                company_address = ""
+                                if (company_name and company_number):
+                                    company_address, company_jurisdiction = getCHbasics(company_name, company_number)
+                                else:
+                                    RawAddress = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
+                                    # Clean up: remove repeated commas and any surrounding whitespace
+                                    company_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
+                                    company_address = re.sub(r',+', ',', company_address)       # collapse multiple commas into one
+                                    company_address = company_address.strip(', ').strip()       # final tidy-up
+                                    company_jurisdiction = "england-wales"
+                                                           
                             # get company contact data
                             contactId = requirement.get('contactId', '')
                             contact_url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contactId}"
@@ -627,6 +631,8 @@ def getC7candidate(service_id, surname):
                     "candidateltdregno": candidate_reg_number,
                     "candidateltdname": candidate_ltd_name,
                     "candidatesurname": candidate_surname,
+                    "candidatename": candidate_name,
+                    "candidatejurisdiction": candidate_jurisdiction,
                     "sid": service_id,
                     "servicename": job_title,
                     "companyname": company_name,
@@ -634,6 +640,7 @@ def getC7candidate(service_id, surname):
                     "companyemail": company_email,
                     "companyphone": company_phone,    
                     "companynumber": company_number,
+                    "companyjurisdiction": company_jurisdiction,
                     "contactname": contact_name,
                     "contactaddress": contact_address,
                     "contactemail": contact_email,
@@ -648,9 +655,7 @@ def getC7candidate(service_id, surname):
                     "feecurrency": "GBP",
                     "charges": charges,
                     "chargecurrency": "GBP",  
-                    "candidateid": candidate_id,
-                    "candidatename": candidate_name,
-                    "candidatejurisdiction": candidate_jurisdiction,
+                    "candidateid": candidate_id,                    
                     "description": description,
                     "companyid": companyId,
                     "contactid": contactId,
@@ -662,3 +667,44 @@ def getC7candidate(service_id, surname):
     except Exception as e:
         return {"error": str(e)}
 
+
+def loadCandidates():
+
+    if Config.find_by_name("C7 Key") is None:
+        loadConfig()
+
+    subscription_key = Config.find_by_name("C7 Key")
+    user_id = Config.find_by_name("C7 Userid")
+    headers = {
+            'Ocp-Apim-Subscription-Key': subscription_key,
+            'Cache-Control': 'no-cache'
+        }
+
+    candidate_list = []
+
+    for target in string.ascii_uppercase:
+
+        candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={target}"    
+        
+        candidate_search_response = requests.get(candidate_url, headers=headers)
+                            
+        search_results = candidate_search_response.json()
+
+        for candidate in search_results:
+
+            candidate_id = candidate
+            candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Get?UserId={user_id}&CandidateId={candidate_id}"
+            candidate_response = requests.get(candidate_url, headers=headers)
+            
+            # move on to next candidate if no record found - very unlikely?
+            if candidate_response.status_code != 200:
+                continue
+            
+            candidate_data = candidate_response.json()
+            new_row = candidate_data.get("forenames") + " " + candidate_data.get("surname")
+
+            
+
+            candidate_list.append(new_row)
+        
+    return candidate_list

@@ -45,13 +45,14 @@ Candidate Email: {{ contractdata['candidateemail'] }}
 Candidate Phone: {{ contractdata['candidatephone'] }}
 Candidate Ltd Company Name: {{ contractdata['candidateltdname'] }}
 Candidate Ltd Company Registration Number: {{ contractdata['candidateltdregno'] }}
-Candidate Ltd Company Jurisdiction: {{ contractdata['candidatejurisdiction'] }}
+Candidate Ltd Company Legal Jurisdiction: {{ contractdata['candidatejurisdiction'] }}
 
 Client Name: {{ contractdata['companyname'] }}
 Client Address: {{ contractdata['companyaddress'] }}
 Client Email: {{ contractdata['companyemail'] }}
 Client Phone: {{ contractdata['companyphone'] }}
 Client Registration Number: {{ contractdata['companyregistrationnumber'] }}
+Client Legal Jurisdiction: {{ contractdata['companyjurisdiction'] }}
 
 Client Contact Name: {{ contractdata['contactname'] }}
 Client Contact Address: {{ contractdata['contactaddress'] }}
@@ -83,5 +84,16 @@ C7 Contact ID: {{ contractdata['contactid'] }}
         {% endif %}
     </div>
 </div>
+
+{% with messages = get_flashed_messages(category_filter=['error']) %}
+    {% if messages %}
+        <script>
+            // Simple blocking pop-up
+            window.addEventListener('DOMContentLoaded', () => {
+                alert( {{ messages[0] | tojson }} );
+            });
+        </script>
+    {% endif %}
+{% endwith %}
 
 {% endblock %}

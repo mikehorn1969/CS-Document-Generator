@@ -48,6 +48,12 @@ th, td {
     width: 60%;
 }
 
+.name-textbox {
+    background-color:#fff ;
+    font-size: 16px;      
+    width: 80%;
+}
+
 .index-label {
     font-size: 16px;  
 }

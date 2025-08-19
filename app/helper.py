@@ -43,3 +43,11 @@ def loadAzureKeys():
             exit(0)
 
     return("Azure Config Loaded")
+
+
+def formatName(name_string):
+    name_part = name_string.split(":")[0].strip()
+    name_array = name_part.split(" ")
+    surname_posn = len(name_array) - 1
+    
+    return f"{name_array[0]} {name_array[surname_posn]}"
