@@ -17,13 +17,14 @@
 
 <form action="/download_client_contract" method="post">
 
-    <input type="date" name="AgreementDate" placeholder="Agreement Date" required>
-    <input type="submit" class="submit-btn" id="submit-btn" value="Submit">
-    <a href="{{ url_for('index') }}" class="submit-btn">Back</a>
+    <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
+    <div>
+        <input type="date" name="AgreementDate" placeholder="Agreement Date" required>    
+    </div>
+    <input type="submit" class="small-button" id="submit-btn" value="Submit">
+    <a href="{{ url_for('index') }}" class="small-button">Back</a>
     
     
 </form>
-
-
 
 {% endblock %}

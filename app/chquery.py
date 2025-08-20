@@ -1,5 +1,5 @@
 from __future__ import annotations
-import requests
+import requests, json
 from app.classes import Config
 from app.helper import loadConfig, formatName
 from typing import Optional, Dict, Any
@@ -31,7 +31,7 @@ def searchCH(companyName):
         loadConfig()
         
     subscription_key = Config.find_by_name("CH Key")
-
+    
     if not subscription_key:
         raise ValueError("API key not found in config file.")
 
@@ -50,6 +50,7 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
     Validate a Companies House entry and (optionally) confirm a director.
     Returns a dict with keys: Valid, Narrative, CompanyNumber, Is Director, Director, Jurisdiction, Status.
     """
+    nameapi_key = Config.find_by_name("NAMEAPI Key")
 
     # --- helpers -------------------------------------------------------------
     def make_result(*, valid: bool, narrative: str = "", is_director: bool = False,
@@ -127,25 +128,57 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
 
         search_director = formatName(director_input) 
 
-        officers_url = f"https://api.companieshouse.gov.uk/company/{reg_number}/officers"
+        officers_url = f"https://api.companieshouse.gov.uk/company/{reg_number}/officers?filter=active"
         resp = requests.get(officers_url, auth=(subscription_key, ""))
         resp.raise_for_status()
         officers_json = resp.json()
 
         is_director = False
+        arr_officers = []
         for item in officers_json.get("items", []):
-            if item.get("resigned_on"):
-                continue
             if item.get("officer_role") != "director":
                 continue
             formatted = fmt_officer_name(item.get("name", ""))
             if formatted is None:
                 # name in unexpected format; just skip it
                 continue
-            # CH search results often include middle names but they are not held in C7. Use 'in' for best chance of a match    
-            if search_director in formatted:
-                is_director = True
-                break
+            arr_officers.append({"string": formatted, "fieldType": "FULLNAME"})
+
+        if arr_officers:
+            nameapi_url = f"https://api.nameapi.org/rest/v5.3/matcher/personmatcher?apiKey={nameapi_key}"
+            body_dict = {
+                "context": {
+                    "priority": "REALTIME",
+                    "properties": []
+                },
+                "inputPerson1": {
+                    "type": "NaturalInputPerson",
+                    "personName": {
+                        "nameFields": [
+                            {
+                                "string": search_director,
+                                "fieldType": "FULLNAME"
+                            }
+                        ]
+                    }
+                },
+                "inputPerson2": {
+                    "type": "NaturalInputPerson",
+                    "personName": {
+                        "nameFields": arr_officers  # <-- should be a list of dicts
+                    }
+                }
+            }
+            header_dict = {
+                "Content-Type": "application/json"
+            }
+
+            nameapi_body = json.dumps(body_dict)
+            nameapi_response = requests.post(nameapi_url, data=nameapi_body, headers=header_dict)
+            nameapi_response.raise_for_status() # Tech Debt: use this througout?
+            nameapi_result = nameapi_response.json()
+
+            is_director = nameapi_result.get("matchType") in "EQUAL,MATCHING,SIMILAR,RELATION" # Tech Debt: may need to remove RELATION ?
 
         if not is_director:
             return make_result(
@@ -182,6 +215,7 @@ def getCHbasics(ltd_name, reg_number):
     # Use company number to get jurisdiction from CH record
     company_record = getCHRecord(reg_number)
 
+    # Tech Debt: break using flag once key is found
     for key, value in company_record.items():
         if key == "jurisdiction":
             return_jurisdiction = value

@@ -1,6 +1,6 @@
 import configparser
 from app.classes import Config
-
+import requests
 
 def loadConfig():
 
@@ -16,6 +16,10 @@ def loadConfig():
             subscription_key = Config("C7 Key",config.get('APIKEYS', 'SUBSCRIPTION_KEY1'))
             user_id = Config("C7 Userid",config.get('APIKEYS', 'C7_USERID'))
             ch_key = Config("CH Key",config.get('APIKEYS', 'CH_KEY'))
+            nameapi_prefix = config.get('NAMEAPI', 'KEY_PREFIX')            
+            nameapi_suffix = config.get('NAMEAPI', 'KEY_SUFFIX')
+            nameapi_key = f"{nameapi_prefix}-{nameapi_suffix}"
+            Config("NAMEAPI Key",nameapi_key)
 
         except Exception as e:
             print(e)
@@ -51,3 +55,14 @@ def formatName(name_string):
     surname_posn = len(name_array) - 1
     
     return f"{name_array[0]} {name_array[surname_posn]}"
+
+def synonymsOf(word):
+    """
+    Fetch synonyms for a given word from the Stands4 API.
+    """
+    api_url = f"https://api.stands4.com/v1/synonyms?word={word}&userid={Config.find_by_name('STANDS4_USERID')}&token={Config.find_by_name('STANDS4_TOKEN')}"
+    response = requests.get(api_url)
+    if response.status_code == 200:
+        return response.json().get("synonyms", [])
+    else:
+        return []

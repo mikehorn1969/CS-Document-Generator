@@ -19,22 +19,21 @@
             {% if session['candidate_search_string'] %}    
             <form action="clearsession" method="post">
                 <label for="sid" class="index-label"><strong>Service Provider</strong></label>
-                <p>
+                <div>
                     <input type="text" id="sid" value="{{ session['candidate_search_string'] }}" autocomplete="off" class="name-textbox" readonly>                        
-                </p>
-            
-                <input type="submit" value="RESET" id="reset-btn" class="button"/>
-                
+                    <input type="submit" value="RESET" id="reset-btn" class="small-button"/>
+                </div>                
             </form>
             {% else %}        
             <form action="setsid" method="post">
                 <label for="sid" class="index-label"><strong>Service Provider</strong></label>
                 <div>
                     <input type="text" id="sid" name="sid" placeholder="Type a candidate surname..." autocomplete="off" class="name-textbox">
-                        <div id="suggestions"></div>
+                    <input type="submit" value="Set" id="submit-btn" class="small-button"/>
+                    <div id="suggestions"></div>
                 </div>
             
-                <input type="submit" value="Set" id="submit-btn" class="button"/>
+                
             
             </form>
             {% endif %}   
@@ -78,7 +77,17 @@
             </div>    
             <div>       
                 <form action="clientcontract" method="get">
-                    <input type="submit" value="Client contract" id="submit-btn" class="button"/>                        
+                    <input type="submit" value="Client Contract" id="submit-btn" class="button"/>                        
+                </form>
+            </div>            
+            <div>       
+                <form action="spcontract" method="get">
+                    <input type="submit" value="Service Provider Contract" id="submit-btn" class="button"/>                        
+                </form>
+            </div>            
+            <div>       
+                <form action="candidatenda" method="get">
+                    <input type="submit" value="Candidate NDA" id="submit-btn" class="button"/>                        
                 </form>
             </div>            
         </div>    

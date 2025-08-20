@@ -11,45 +11,40 @@
 <form action="/download_sp_msa" method="post">
     <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
     <div>
-        <input type="date" name="AgreementDate" placeholder="Agreement Date" required>
+        <input type="date" name="AgreementDate" placeholder="Agreement Date" value="{{ contract['AgreementDate'] if contract and contract.get('AgreementDate') else '' }}">
     </div>
 
     <label for="CandidateName" class="index-label"><strong>Name</strong></label>    
     <div>
-        <input type="text" name="CandidateName" placeholder="Candidate Name" required>
+        <input type="text" name="CandidateName" placeholder="Candidate Name" value="{{ contract['candidatename'] if contract and contract.get('candidatename') else '' }}">
     </div>
     <br>
     <label for="CandidateEmail" class="index-label"><strong>Email address</strong></label>    
     <div>
-        <input type="email" name="CandidateEmail" placeholder="Candidate email address" required>
+        <input type="email" name="CandidateEmail" placeholder="Candidate email address" value="{{ contract['candidateemail'] if contract and contract.get('candidateemail') else '' }}">
     </div>
     <br>
     <label for="CandidatePhone" class="index-label"><strong>Phone</strong></label>    
     <div>
-        <input type="tel" name="CandidatePhone" placeholder="Candidate phone number" required>
+        <input type="tel" name="CandidatePhone" placeholder="Candidate phone number" value="{{ contract['candidatephone'] if contract and contract.get('candidatephone') else '' }}">
     </div>
     <br>
     <label for="CandidateLtdCo" class="index-label"><strong>Ltd Company Name</strong></label>    
     <div>
-        <input type="text" name="CandidateLtdCo" placeholder="Ltd Company Name" required>
+        <input type="text" name="CandidateLtdCo" placeholder="Ltd Company Name" value="{{ contract['candidateltdname'] if contract and contract.get('candidateltdname') else '' }}">
     </div>
     <br>
     <label for="CandidateLtdNo" class="index-label"><strong>Ltd Company Registration Number</strong></label>    
     <div>
-        <input type="text" name="CandidateLtdNo" placeholder="Registration Number" required>
+        <input type="text" name="CandidateLtdNo" placeholder="Registration Number" value="{{ contract['candidateltdregno'] if contract and contract.get('candidateltdregno') else '' }}">
         <input type="submit" class="sm-button" id="validate-btn" value="Validate">
     </div>
     <br>
     <label for="RegAddress" class="index-label"><strong>Registered Office</strong></label>    
     <div>
-        <input type="text" name="RegAddress" placeholder="Registered Office Address" class="address-textbox" readonly>
+        <input type="text" name="RegAddress" placeholder="Registered Office Address" class="address-textbox" value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}">
     </div>
-    <br>
-    <label for="AgreementDate" class="index-label"><strong>Agreement date</strong></label>    
-    <div>
-        <input type="date" name="AgreementDate" placeholder="Agreement Date" required>
-    </div>
-    <br>
+    <br>     
     <div>
         <input type="submit" class="button" id="submit-btn" value="Submit">
         <a href="{{ url_for('index') }}" class="button">Back</a>

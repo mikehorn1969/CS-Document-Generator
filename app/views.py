@@ -1,12 +1,11 @@
 from app import app, db
 from flask import Flask, abort, render_template, request, redirect, url_for, session, send_file, flash, jsonify
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import  getC7candidate, searchC7Candidate, getC7Clients, getContactsByCompany
+from app.c7query import  getC7candidate, searchC7Candidate, getC7Clients, getContactsByCompany, gather_data
 from app.chquery import validateCH, searchCH, getCHRecord
 from app.classes import Config, Company
 from app.helper import loadConfig, formatName
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from sqlalchemy import select
 import pandas as pd
 from io import BytesIO
@@ -95,76 +94,8 @@ def colleaguedata():
 
     if sid or candidate_surname:
         # Load existing contract data if available
-        contract = {}        
-        c7contractdata = getC7candidate(sid,candidate_surname)
-
-        if c7contractdata:                   
-            contract['sid'] = c7contractdata.get("sid", "")
-            contract['servicename'] = c7contractdata.get("servicename", "")
-            contract['companyaddress'] = c7contractdata.get("companyaddress", "")
-            contract['companyemail'] = c7contractdata.get("companyemail", "")
-            contract['companyphone'] = c7contractdata.get("companyphone", "")
-            contract['companyname'] = c7contractdata.get("companyname", "")
-            contract['companyregistrationnumber'] = c7contractdata.get("companynumber", "")            
-            contract['companyjurisdiction'] = c7contractdata.get("companyjurisdiction","")
-            contract['contactname'] = c7contractdata.get("contactname", "")
-            contract['contactaddress'] = c7contractdata.get("contactaddress", "")
-            contract['contactemail'] = c7contractdata.get("contactemail", "")
-            contract['contactphone'] = c7contractdata.get("contactphone", "")
-            contract['contacttitle'] = c7contractdata.get("contacttitle", "")
-            contract['jobtitle'] = c7contractdata.get("jobtitle", "")
-            contract['companyname'] = c7contractdata.get("companyname", "")
-            contract['fees'] = c7contractdata.get("fees", 0.0)
-            contract['feecurrency'] = c7contractdata.get("feecurrency", "GBP")
-            contract['charges'] = c7contractdata.get("charges", 0.0)
-            contract['chargecurrency'] = c7contractdata.get("chargecurrency", "GBP")
-            contract['requirementid'] = c7contractdata.get("requirementid", 0)
-            contract['candidateid'] = c7contractdata.get("candidateid", 0)
-            contract['placementid'] = c7contractdata.get("placementid", 0)
-            contract['candidatename'] = c7contractdata.get("candidatename", "")
-            contract['candidateaddress'] = c7contractdata.get("candidateaddress", "")
-            contract['candidateemail'] = c7contractdata.get("candidateemail", "")
-            contract['candidatephone'] = c7contractdata.get("candidatephone", "")
-            contract['candidateltdname'] = c7contractdata.get("candidateltdname", "")
-            contract['candidateltdregno'] = c7contractdata.get("candidateltdregno", "")
-            contract['candidatejurisdiction'] = c7contractdata.get("candidatejurisdiction", "")
-            contract['description'] = c7contractdata.get("description", "")
-            contract['companyid'] = c7contractdata.get("companyid", 0)
-            contract['contactid'] = c7contractdata.get("contactid", 0)  
-            contract['noticeperiod'] = 4 # Default to 4 weeks, can be changed later
-            contract['noticeperiod_unit'] = "weeks"  # Default to weeks, can be changed later
-            
-            
-            start_date = c7contractdata.get("startdate", "")
-            end_date = c7contractdata.get("enddate", "")
-            duration = "0 days" # Default duration
-
-            # calculate duration
-            if start_date and end_date:
-                                
-                start_date_obj = datetime.strptime(start_date, "%d/%m/%Y").date()
-                end_date_obj  = datetime.strptime(end_date, "%d/%m/%Y").date()
-                delta = relativedelta(end_date_obj, start_date_obj)
-
-                parts = []
-                if delta.years > 0:
-                    parts.append(f"{delta.years} year{'s' if delta.years > 1 else ''}") 
-                if delta.months > 0:
-                    parts.append(f"{delta.months} month{'s' if delta.months > 1 else ''}")
-                if delta.days > 0:
-                    weeks = delta.days // 7
-                    parts.append(f"{weeks} week{'s' if weeks > 1 else ''}")
-                    remaining_days = delta.days % 7
-                    if remaining_days > 0:
-                        parts.append(f"{remaining_days} day{'s' if remaining_days > 1 else ''}")
-                elif delta.days:
-                    parts.append(f"{delta.days} day{'s' if delta.days > 1 else ''}")
-
-                duration = ", ".join(parts) if parts else "0 days" 
-            
-            contract['startdate'] = start_date
-            contract['enddate'] = end_date
-            contract['duration'] = duration
+        contract = gather_data(sid,candidate_surname)
+        if contract:
             session['sessionContract'] = contract
                     
     return render_template(
@@ -516,8 +447,8 @@ def download_client_contract():
 
 @app.route('/spmsa', methods=['GET', 'POST'])
 def prepare_sp_msa():
-
-    return render_template('spmsa.html')
+    contract = session.get('sessionContract', {})
+    return render_template('spmsa.html', contract=contract)
 
 
 @app.route('/download_sp_msa', methods=['POST'])
@@ -590,7 +521,8 @@ def download_sp_msa():
 
 @app.route('/clientmsa', methods=['GET', 'POST'])
 def prepare_client_msa():
-    return render_template('clientmsa.html')
+    contract = session.get('sessionContract', {})
+    return render_template('clientmsa.html', contract=contract)
 
 
 @app.route('/download_client_msa', methods=['POST'])
@@ -611,14 +543,14 @@ def download_client_msa():
     data_rows = []
     row = {}
     row["AgreementDate"] = f_agreement_date
-    fields = ["candidatename", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress"]
-    
-    export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress"]
-    
-    # Populate row with contract fields    
+    fields = ["companyname", "companyregistrationnumber", "companyjurisdiction", "companyaddress"]
+
+    export_columns = ["ClientName", "CompanyNumber", "Jurisdiction", "CompanyAddress"]
+
+    # Populate row with contract fields
     # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
-        if ( raw_field == "candidatejurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
+        if ( raw_field == "jurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
             field = "England and Wales"
         elif ( raw_field == "candidatename" ):
             field = formatName(contract.get(raw_field,''))
@@ -660,7 +592,7 @@ def download_client_msa():
     return send_file(
         final_output,
         as_attachment=True,
-        download_name=f"{contract.get('candidateltdname')} Client MSA.xlsx",
+        download_name=f"{contract.get('companyname')} Client MSA.xlsx",
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     
