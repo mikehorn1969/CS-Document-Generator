@@ -4,7 +4,7 @@
 {% block title %}CS Document Generator v0.3{% endblock %}
 {% block head %}
     {{ super() }}
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 {% endblock %}
 
@@ -15,28 +15,16 @@
     <div class="c7grid"> 
         <div> <!-- column 1 - search combo -->
             <!-- Service ID -->
-            <!-- Tech debt: do we need to duplicate the entire block or can we be smarter with action and button only? --> 
-            {% if session['candidate_search_string'] %}    
-            <form action="clearsession" method="post">
-                <label for="sid" class="index-label"><strong>Service Provider</strong></label>
-                <div>
-                    <input type="text" id="sid" value="{{ session['candidate_search_string'] }}" autocomplete="off" class="name-textbox" readonly>                        
-                    <input type="submit" value="RESET" id="reset-btn" class="small-button"/>
-                </div>                
-            </form>
-            {% else %}        
-            <form action="setsid" method="post">
-                <label for="sid" class="index-label"><strong>Service Provider</strong></label>
-                <div>
-                    <input type="text" id="sid" name="sid" placeholder="Type a candidate surname..." autocomplete="off" class="name-textbox">
-                    <input type="submit" value="Set" id="submit-btn" class="small-button"/>
-                    <div id="suggestions"></div>
-                </div>
             
-                
-            
-            </form>
-            {% endif %}   
+            <label for="sid" class="index-label"><strong>Service Provider</strong></label>
+            <div>
+                <input type="text" id="sid" placeholder="Type a candidate surname..." autocomplete="off" class="name-textbox"
+                    value="{{ session['candidateName'] if session and session.get('candidateName') else '' }}">
+                <div id="suggestions"></div>
+            </div>
+            <div>                
+                <input type='hidden' name='candidateId' id="candidateId" >
+            </div>            
         </div>
         
         <div> <!-- column 2 - data views -->
@@ -60,8 +48,13 @@
             </div>
             <div>
                 <form action="servicearrangements" method="get">                
-                        <input type="submit" value="Service Arrangements" id="submit-btn" class="button"/>                    
+                    <input type="submit" value="Service Arrangements" id="submit-btn" class="button"/>                    
                 </form>        
+            </div>
+            <div>
+                <form action="clearsession" method="post">              
+                    <input type="submit" value="Clear Session" id="reset-btn" class="reset-button"/>                                
+                </form>
             </div>
         </div>
         <div> <!-- column 3 - documents -->
@@ -93,39 +86,64 @@
         </div>    
     </div>
 
-    {% with messages = get_flashed_messages(category_filter=['error']) %}
-        {% if messages %}
-            <script>
-                // Simple blocking pop-up
-                window.addEventListener('DOMContentLoaded', () => {
-                    alert( {{ messages[0] | tojson }} );
-                });
-            </script>
-        {% endif %}
-    {% endwith %}
+{% with messages = get_flashed_messages(category_filter=['error']) %}
+    {% if messages %}
+        <script>
+            window.addEventListener('DOMContentLoaded', () => {
+                alert( {{ messages[0] | tojson }} );
+            });
+        </script>        
+    {% endif %}
+{% endwith %}                        
 
-    <script>
-        $(document).ready(function() {
-            $("#sid").on("input", function() {
-                let query = $(this).val();
-                if (query.length > 0) {
-                    $.getJSON("/searchcandidates", { q: query }, function(data) {
-                        let suggestions = $("#suggestions");
-                        suggestions.empty();
-                        data.forEach(function(item) {
-                            suggestions.append(`<div>${item}</div>`);
+<script>
+    $(document).ready(function() {
+        $("#sid").on("input", function() {
+            let query = $(this).val();
+            if (query.length > 3) {
+                $.getJSON("/searchcandidates", { q: query }, function(data) {
+                    const $sugs = $("#suggestions").empty();
+                    data.forEach(function (item) {
+                        const $row = $('<div class="candidate-suggestion"></div>')
+                        .text(item.candidateName)
+                        .data({
+                            candidateId: item.candidateId || "",
+                            candidateEmail: item.candidateEmail || "",
+                            candidatePhone: item.candidatePhone || "",
+                            candidateLtdName: item.candidateLtdName || "",
+                            candidateLtdRegNo: item.candidateLtdRegNo || "",
+                            candidateJurisdiction: item.candidateJurisdiction || "",
+                            candidateAddress: item.candidateAddress || "",
+                            candidateName: item.candidateName || ""
                         });
-                    });
-                } else {
-                    $("#suggestions").empty();
-                }
-            });
-
-            $("#suggestions").on("click", "div", function() {
-                $("#sid").val($(this).text());
+                        $sugs.append($row);
+                    });                   
+                    
+                });
+            } else {
                 $("#suggestions").empty();
-            });
+            }
         });
-    </script>
+
+        $("#suggestions").on("click", ".candidate-suggestion", function () {
+            const $s = $(this);
+            $("#sid").val($s.text());
+            $("#candidateId").val($s.data("candidateId"));     
+            
+            console.log("Selected candidateId:", $s.data("candidateId"));
+            const payload = { candidateId: $s.data("candidateId") };
+            $("#suggestions").empty();
+
+            $.ajax({
+                url: "/contract/candidate",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(payload)
+            }).fail(xhr => console.error("Save failed:", xhr.responseText));
+
+        });
+
+    });
+</script>
 
 {% endblock %}

@@ -77,6 +77,15 @@ th, td {
     color: white;
 }
 
+.reset-button {
+    border-radius: 4px;
+    background-color: #fd0000;
+    padding: 15px 30px;
+    border-radius: 4xp;  
+    font-size: 16px;  
+    color: white;
+}
+
 #service-col1 {
     width: 10%;
 }

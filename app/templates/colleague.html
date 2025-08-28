@@ -11,27 +11,18 @@
 <h1>Colleague Data</h1>
 
 <div style="display: grid; grid-template-columns: 1fr 3fr; gap: 32px;">
+    
     <!-- Left Column: Inputs and Buttons -->
-    <div>
-        {% if session['sid'] or session['candidate_surname'] %}
-            <p><strong>Service ID:</strong> {{ session['sid'] }}<p>
-            <p><strong>SP surname:</strong> {{ session['candidate_surname']}}</p>            
-            <form action="/savecolleaguedata" method="post">
-                <input type="submit" value="Save" name="btSave" class="button"/>            
-                <a href="{{ url_for('index') }}" class="button">Back</a>
-            </form>
-        {% else %}
-            <p>Please set a Service ID to view or edit data.</p>
-
-            <form action="/" method="get">
-                <input type="submit" value="Back" name="btBack" class="button"/>
-            </form>            
-        {% endif %}
+    <div>                 
+        <form action="/savecolleaguedata" method="post">
+            <input type="submit" value="Save" name="btSave" class="button"/>            
+            <a href="{{ url_for('index') }}" class="button">Back</a>
+        </form>            
     </div>
 
     <!-- Right Column: ServiceContract Data -->
     <div>
-        {% if session['sid'] or session['candidate_surname'] %}            
+        
             {% if contractdata %}
                 <h2>Service Contract Data</h2>
                 
@@ -39,7 +30,7 @@
 Service ID: {{ contractdata['sid'] }}
 Service Name: {{ contractdata['servicename'] }}
 
-Candidate Name: {{ contractdata['candidatename'] }}
+Candidate Name: {{ contractdata['candidateName'] }}
 Candidate Address: {{ contractdata['candidateaddress'] }}
 Candidate Email: {{ contractdata['candidateemail'] }}
 Candidate Phone: {{ contractdata['candidatephone'] }}
@@ -73,7 +64,7 @@ Client Charges: {{ contractdata['charges'] }}
 Charge Currency: {{ contractdata['chargecurrency'] }}
 
 C7 Requirement ID: {{ contractdata['requirementid'] }}
-C7 Candidate ID: {{ contractdata['candidateid'] }}
+C7 Candidate ID: {{ contractdata['candidateId'] }}
 C7 Placement ID: {{ contractdata['placementid'] }}
 C7 Company ID: {{ contractdata['companyid'] }}
 C7 Contact ID: {{ contractdata['contactid'] }}
@@ -81,7 +72,7 @@ C7 Contact ID: {{ contractdata['contactid'] }}
                     <br>
                 
             {% endif %}
-        {% endif %}
+        
     </div>
 </div>
 

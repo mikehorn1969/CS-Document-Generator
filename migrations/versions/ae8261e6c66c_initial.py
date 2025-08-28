@@ -61,7 +61,7 @@ def upgrade():
     sa.Column('charges', sa.Numeric(precision=10, scale=2), nullable=True),
     sa.Column('chargecurrency', sa.String(length=3), nullable=True),
     sa.Column('requirementid', sa.Integer(), nullable=True),
-    sa.Column('candidateid', sa.Integer(), nullable=True),
+    sa.Column('candidateId', sa.Integer(), nullable=True),
     sa.Column('placementid', sa.Integer(), nullable=True),
     sa.Column('candidatename', sa.String(length=100), nullable=True),
     sa.Column('candidateaddress', sa.String(length=255), nullable=True),

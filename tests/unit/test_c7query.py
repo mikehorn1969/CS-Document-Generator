@@ -1,7 +1,7 @@
 # test_c7query.py
 
 import pytest
-from app.c7query import loadConfig, getC7Contacts, getC7Clients, getContactsByCompany, getC7RequirementCandidates, getC7candidate
+from app.c7query import loadConfig, getC7Contacts, getC7Clients, getContactsByCompany, getC7RequirementCandidates, getC7contract
 
 
 
@@ -50,7 +50,7 @@ def test_getC7Candidate():
 
     service_id = "BRG003"
 
-    result = getC7candidate(service_id)
+    result = getC7contract(service_id)
                         
     assert result != [], "No candidate returned"
     

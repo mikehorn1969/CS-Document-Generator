@@ -1,56 +1,145 @@
+<!DOCTYPE html>
+
 {% extends "base.html" %}
 {% block title %}CS MSA Generator{% endblock %}
 {% block head %}
     {{ super() }}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 {% endblock %}
 
 {% block content %}
 
 <h1>Candidate MSA</h1>
 
-<form action="/download_sp_msa" method="post">
-    <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
-    <div>
-        <input type="date" name="AgreementDate" placeholder="Agreement Date" value="{{ contract['AgreementDate'] if contract and contract.get('AgreementDate') else '' }}">
+<div class="clientgrid">
+    <div> <!-- Left column -->
+        <form action="/download_sp_msa" method="post">
+            <div>
+                <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
+                <div>
+                    <input type="date" name="AgreementDate" placeholder="Agreement Date" \
+                        value="{{ contract['AgreementDate'] if contract and contract.get('AgreementDate') else '' }}" required>
+                </div>
+            </div>
+            <div>
+                <label for="candidate-name" class="index-label"><strong>Name</strong></label>    
+                <div>
+                    <input type="text" id="candidate-name" name="candidate-name" placeholder="Type a candidate surname..." autocomplete="off" class="name-textbox" \
+                        value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}">                    
+                    <div id="suggestions"></div>
+                </div>        
+            </div>
+            <div>
+                <input type='hidden' name='candidateId' id="candidateId">
+            </div>
+            <div>
+                <input type="submit" class="button" id="submit-btn" value="Submit">
+                <a href="{{ url_for('index') }}" class="button">Back</a>
+            </div>
+        </form>
     </div>
+    
+    <div> <!-- Right column -->
+        <form action="/candidate_validate_ch" method="post">
+            <div>
+                <label for="candidate-email" class="index-label"><strong>Email address</strong></label>    
+                <div>
+                    <input type="email" name="candidate-email" id="candidate-email" placeholder="Candidate email address" \
+                        value="{{ contract['candidateemail'] if contract and contract.get('candidateemail') else '' }}" required>
+                </div>
+            </div>
+            <div>
+                <label for="candidate-phone" class="index-label"><strong>Phone</strong></label>    
+                <div>
+                    <input type="tel" name="candidate-phone" id="candidate-phone" placeholder="Candidate phone number" \
+                        value="{{ contract['candidatephone'] if contract and contract.get('candidatephone') else '' }}" required>
+                </div>
+            </div>            
+            <div>
+                <label for="candidate-ltdco" class="index-label"><strong>Ltd Company Name</strong></label>    
+                <div>
+                    <input type="text" name="candidate-ltdco" id="candidate-ltdco" placeholder="Ltd Company Name" \
+                        value="{{ contract['candidateltdname'] if contract and contract.get('candidateltdname') else '' }}" required>
+                    <button type="button" id="btvalidate" class="small-button">Validate</button>
+                </div>
+            </div>
+            <div>
+                <label for="candidate-ltdno" class="index-label"><strong>Ltd Company Registration Number</strong></label>    
+                <div>
+                    <input type="text" name="candidate-ltdno" id="candidate-ltdno" placeholder="Registration Number" \
+                        value="{{ contract['candidateltdregno'] if contract and contract.get('candidateltdregno') else '' }}" required>                                        
+                </div>  
+            </div>
+            <div>
+                <label for="candidate-jurisdiction" class="index-label"><strong>Ltd Company Jurisdiction</strong></label>    
+                <div>
+                    <input type="text" name="candidate-jurisdiction" id="candidate-jurisdiction" placeholder="Jurisdiction" \
+                        value="{{ contract['candidatejurisdiction'] if contract and contract.get('candidatejurisdiction') else '' }}" required>                                        
+                </div>  
+            </div>
+            <div>
+                <label for="reg-address" class="index-label"><strong>Registered Office</strong></label>    
+                <div>
+                    <input type="text" name="reg-address" id="reg-address" placeholder="Registered Office Address" class="address-textbox" \
+                        value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}" required>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 
-    <label for="CandidateName" class="index-label"><strong>Name</strong></label>    
-    <div>
-        <input type="text" name="CandidateName" placeholder="Candidate Name" value="{{ contract['candidatename'] if contract and contract.get('candidatename') else '' }}">
-    </div>
-    <br>
-    <label for="CandidateEmail" class="index-label"><strong>Email address</strong></label>    
-    <div>
-        <input type="email" name="CandidateEmail" placeholder="Candidate email address" value="{{ contract['candidateemail'] if contract and contract.get('candidateemail') else '' }}">
-    </div>
-    <br>
-    <label for="CandidatePhone" class="index-label"><strong>Phone</strong></label>    
-    <div>
-        <input type="tel" name="CandidatePhone" placeholder="Candidate phone number" value="{{ contract['candidatephone'] if contract and contract.get('candidatephone') else '' }}">
-    </div>
-    <br>
-    <label for="CandidateLtdCo" class="index-label"><strong>Ltd Company Name</strong></label>    
-    <div>
-        <input type="text" name="CandidateLtdCo" placeholder="Ltd Company Name" value="{{ contract['candidateltdname'] if contract and contract.get('candidateltdname') else '' }}">
-    </div>
-    <br>
-    <label for="CandidateLtdNo" class="index-label"><strong>Ltd Company Registration Number</strong></label>    
-    <div>
-        <input type="text" name="CandidateLtdNo" placeholder="Registration Number" value="{{ contract['candidateltdregno'] if contract and contract.get('candidateltdregno') else '' }}">
-        <input type="submit" class="sm-button" id="validate-btn" value="Validate">
-    </div>
-    <br>
-    <label for="RegAddress" class="index-label"><strong>Registered Office</strong></label>    
-    <div>
-        <input type="text" name="RegAddress" placeholder="Registered Office Address" class="address-textbox" value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}">
-    </div>
-    <br>     
-    <div>
-        <input type="submit" class="button" id="submit-btn" value="Submit">
-        <a href="{{ url_for('index') }}" class="button">Back</a>
-    </div>
-</form>
+<script>
+    $(document).ready(function() {
+        $("#candidate-name").on("input", function() {
+            let query = $(this).val();
+            if (query.length > 2) {
+                $.getJSON("/searchcandidates", { q: query }, function (data) {
+                    const $sugs = $("#suggestions").empty();
+                    data.forEach(function (item) {
+                        const $row = $('<div class="candidate-suggestion"></div>')
+                        .text(item.candidateName)
+                        .data({
+                            candidateEmail: item.candidateEmail || "",
+                            candidatePhone: item.candidatePhone || "",
+                            candidateLtdName: item.candidateLtdName || "",
+                            candidateLtdRegNo: item.candidateLtdRegNo || "",
+                            candidateJurisdiction: item.candidateJurisdiction || "",
+                            candidateAddress: item.candidateAddress || "",
+                            candidateId: item.candidateId || ""
+                        });
+                        $sugs.append($row);
+                    });
+                });
 
+            } else {
+                $("#suggestions").empty();
+            }
+        });
 
+       $("#suggestions").on("click", ".candidate-suggestion", function() {
+            const $s = $(this);
+            $("#candidate-name").val($s.text());
+            $("#candidate-email").val($s.data("candidateEmail"));
+            $("#candidate-phone").val($s.data("candidatePhone"));
+            $("#candidate-ltdco").val($s.data("candidateLtdName"));
+            $("#candidate-ltdno").val($s.data("candidateLtdRegNo"));
+            $("#candidate-jurisdiction").val($s.data("candidateJurisdiction"));
+            $("#reg-address").val($s.data("candidateAddress"));
+            $("#candidateId").val($s.data("candidateId"));
+            
+            const payload = { candidateId: $s.data("candidateId") };
+
+            $("#suggestions").empty();
+            
+            $.ajax({
+                url: "/contract/candidate",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(payload)
+            }).fail(xhr => console.error("Save failed:", xhr.responseText));
+
+        });
+    });
+</script>
 
 {% endblock %}

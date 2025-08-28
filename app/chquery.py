@@ -15,8 +15,9 @@ def getCHRecord(companyNo):
     if not subscription_key:
         raise ValueError("API key not found in config file.")
 
-    url = f"https://api.companieshouse.gov.uk/company/{companyNo}"
-  
+    sCompanyNo = companyNo.strip()
+    url = f"https://api.companieshouse.gov.uk/company/{sCompanyNo}"
+
     response = requests.get(url, auth=(subscription_key,""))
 
     if response.status_code == 200:
@@ -211,6 +212,7 @@ def getCHbasics(ltd_name, reg_number):
                     item.get('company_number') == reg_number
                 ):
                     return_address = item.get('address_snippet')
+                    break
 
     # Use company number to get jurisdiction from CH record
     company_record = getCHRecord(reg_number)
@@ -219,6 +221,7 @@ def getCHbasics(ltd_name, reg_number):
     for key, value in company_record.items():
         if key == "jurisdiction":
             return_jurisdiction = value
+            break
 
     return return_address, return_jurisdiction
 

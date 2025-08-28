@@ -1,10 +1,10 @@
 from app import app, db
 from flask import Flask, abort, render_template, request, redirect, url_for, session, send_file, flash, jsonify
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import  getC7candidate, searchC7Candidate, getC7Clients, getContactsByCompany, gather_data
-from app.chquery import validateCH, searchCH, getCHRecord
+from app.c7query import  searchC7Candidate, getC7Clients, getContactsByCompany, gather_data, getC7Candidate
+from app.chquery import validateCH, searchCH
 from app.classes import Config, Company
-from app.helper import loadConfig, formatName
+from app.helper import loadConfig, formatName, uploadToSharePoint
 from datetime import datetime
 from sqlalchemy import select
 import pandas as pd
@@ -15,7 +15,8 @@ from openpyxl.utils import get_column_letter
 import requests
 import time
 from typing import List
-
+#from office365.runtime.auth.user_credential import UserCredential
+from office365.sharepoint.client_context import ClientContext
 
 @app.route('/', methods=["GET", "POST"])
 def index():
@@ -26,8 +27,9 @@ def index():
 def search_candidates():
     q = request.args.get("q", "").strip()
     results = fetch_candidates(q)
+    session["candidateName"] = results[0].get("candidateName") if results else None
     return jsonify(results)
-
+    
 
 @app.route('/searchclients')
 def search_clients():
@@ -43,32 +45,7 @@ def search_contacts():
     results = fetch_contacts(qclient,qcontact)
     return jsonify(results)
 
-
-@app.route('/setsid', methods=["GET", "POST"])
-def save_sid():
-    """
-    Handles POST requests to save a candidate's Service ID (SID) and surname in the session.
-    If a surname is provided in the form data, attempts to find the candidate's surname and SID
-    using the `searchC7Candidate` function and saves them to the session if found.
-    If no surname is provided, attempts to find a contract record by SID using the `ContractModel`.
-    If found, saves the candidate's name and SID to the session.
-    Finally, redirects the user to the 'index' route.
-    """
-    
-    if request.method == 'POST':        
-        session['candidate_search_string'] = request.form.get('sid','')
-        surname_input = request.form.get('sid','').strip().split(",")[0]
-        split_string = surname_input.split(":")
-        sid_input = split_string[1].strip() if len(split_string) > 1 else ""
-        
-        if surname_input:
-            session['candidate_surname'] = surname_input
-        if sid_input:
-            session['sid'] = sid_input.upper()  # Save Service ID to session
           
-    return redirect(url_for('index'))
-
-
 @app.route('/clearsession', methods=["POST"])
 def clear_session():
     session.clear()
@@ -87,17 +64,18 @@ def colleaguedata():
     Returns:
         Rendered HTML template 'colleague.html' with contract data context.
     """
-    
-    contract = {}
-    sid = session.get('sid') or None
-    candidate_surname = session.get('candidate_surname') or None
-
-    if sid or candidate_surname:
+    session_contract = session.get('sessionContract') or None
+    if not session_contract:
+        flash("Get a Candidate/Service Provider before continuing.", "error")
+        return redirect(url_for('index'))
+    else:
+        contract = {}
         # Load existing contract data if available
-        contract = gather_data(sid,candidate_surname)
+        contract = gather_data(session_contract)
         if contract:
             session['sessionContract'] = contract
-                    
+            session["candidateName"] = contract.get("candidateName", "")
+
     return render_template(
         'colleague.html', contractdata=contract)
 
@@ -116,15 +94,16 @@ def savecolleaguedata():
         Exception: Any exception during database operations is caught and stored as an error message.
     """
 
-    if request.method == "POST":
-        if 'btSave' in request.form:
-            try:
-                contract = session.get('sessionContract', {})
-                sid = session.get('sid')
-
+    if 'btSave' in request.form:
+        
+            sid = session.get('sid')
+            contract = session.get('sessionContract', {})
+            
+            if contract:
                 # validate data against CH records
                 # 1. Candidate
-                ch_candidatename = contract.get("candidatename").split("(")
+                sid = contract.get("sid", sid)
+                ch_candidatename = contract.get("candidateName").split("(")
                 ch_candidatename = ch_candidatename[0]
                 ch_result = validateCH(contract.get("candidateltdregno"), contract.get("candidateltdname"), ch_candidatename)
 
@@ -133,43 +112,49 @@ def savecolleaguedata():
                     flash(ch_result.get("Narrative",""), "error")
                     return redirect(url_for("colleaguedata"))
 
-                # 2. Client
-                ch_result = validateCH(contract.get("companyregistrationnumber"), contract.get("companyname"))
+                # 2. Client - only where clientname is present
+                client_companyname = contract.get("companyregistrationnumber")
 
-                if not ch_result.get("Valid", False):
-                    # Show pop-up on next render and stop here
-                    flash(ch_result.get("Narrative",""), "error")
-                    return redirect(url_for("colleaguedata"))
+                if client_companyname:
+                    ch_result = validateCH(client_companyname, contract.get("companyname"))
 
+                    if not ch_result.get("Valid", False):
+                        # Show pop-up on next render and stop here
+                        flash(ch_result.get("Narrative",""), "error")
+                        return redirect(url_for("colleaguedata"))
+
+            
+            # If sid is present that means we have a placed Service Provider
+            if sid:                             
+                # Try to find existing company in DB        
                 contractdb = {}
-                # Try to find existing company in DB
-                if sid:                                     
-                    contractdb = ContractModel.query.filter_by(sid=sid).first()
+                contractdb = ContractModel.query.filter_by(sid=sid).first()
 
+                # Create new company record if not found
                 if not contractdb:
                     # Create new company record
                     new_sid = contract.get("sid", "") if sid else "MSA"
-                    contractdb = ContractModel( 
-                        sid = new_sid.upper(),
-                        servicename = contract.get("servicename", "") )
+                    contractdb = ContractModel()
                     db.session.add(contractdb)
-                
+                    setattr(contractdb, "sid", new_sid.upper())
+                    setattr(contractdb, "servicename", contract.get("servicename", ""))
+
                 # Update existing record using contract dictionary 
                 fields = ["companyname", "companyaddress", "companyemail", "companyphone", "companyregistrationnumber", "companyjurisdiction",
-                          "sid", "servicename",
-                          "contactname", "contactaddress", "contactemail", "contactphone", "contacttitle", 
-                          "jobtitle", "charges", "chargecurrency", 
-                          "requirementid", "candidateid", "placementid", "candidatename", "candidateaddress", "candidateemail",
-                          "candidatephone", "candidateltdname", "candidateltdregno", "candidatejurisdiction", "description", "companyid",
-                          "contactid", "noticeperiod", "noticeperiod_unit", "duration"
-                         ]
+                            "sid", "servicename",
+                            "contactname", "contactaddress", "contactemail", "contactphone", "contacttitle", 
+                            "jobtitle", "charges", "chargecurrency", 
+                            "requirementid", "candidateId", "placementid", "candidatename", "candidateaddress", "candidateemail",
+                            "candidatephone", "candidateltdname", "candidateltdregno", "candidatejurisdiction", "description", "companyid",
+                            "contactid", "noticeperiod", "noticeperiod_unit", "duration"
+                            ]
 
                 # Set defaults if necessary
                 defaults = {
                     "fees": 0.0,
                     "charges": 0.0,
                     "requirementid": 0,
-                    "candidateid": 0,
+                    "candidateId": 0,
                     "companyid": 0,
                     "contactid": 0,
                     "noticeperiod": 4,
@@ -179,7 +164,11 @@ def savecolleaguedata():
                 }
 
                 for field in fields:
-                    value = contract.get(field, defaults.get(field, ""))
+                    # Tech Debt: unify candidateName casing
+                    if field == "candidatename":
+                        value = contract.get("candidateName", defaults.get(field, ""))
+                    else:
+                        value = contract.get(field, defaults.get(field, ""))
                     setattr(contractdb, field, value)
 
                 # Handle dates separately  
@@ -187,28 +176,38 @@ def savecolleaguedata():
                     start_date = datetime.strptime(contract.get("startdate", ""), "%d/%m/%Y")                
                     end_date  = datetime.strptime(contract.get("enddate", ""), "%d/%m/%Y")
                 
-                    contractdb.startdate = start_date 
-                    contractdb.enddate = end_date
-                 
+                    setattr(contractdb,"startdate",start_date)
+                    setattr(contractdb,"enddate", end_date)
+                    
                 db.session.commit()
-            except Exception as e:
-                error = str(e)
-        
+                    
     return redirect(url_for('index'))
         
 
 @app.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
 
-    sid = session.get('sid', '')
+    session_contract = session.get('sessionContract') or None
+    if not session_contract:
+        flash("Pick a Candidate/Service Provider before continuing.", "error")
+        return redirect(url_for('index'))
+    else:
+        contract = {}
+        # Load existing contract data if available
+        contract = gather_data(session_contract)
+        if contract:
+            session['sessionContract'] = contract
+            session["candidateName"] = contract.get("candidateName", "")
+
     standards = []
     
     if request.method == 'POST':
+        # Gather standards data
         stdids = request.form.getlist('id')
         ssns = request.form.getlist('ssn')
         descriptions = request.form.getlist('service-description')
 
-        # You can zip and process them here:
+        # Zip and process them here:
         standards = list(zip(stdids, ssns, descriptions))
 
         # Example: print or save them
@@ -223,7 +222,11 @@ def set_servicestandards():
                     record.description = rawDesc
                 else:   
                     if ssn.strip() and desc.strip():
-                        db.session.add(ServiceStandard(sid=sid, ssn=ssn.strip(), description=rawDesc))
+                        new_standard = ServiceStandard()
+                        new_standard.sid = sid
+                        new_standard.ssn = ssn.strip()
+                        new_standard.description = rawDesc
+                        db.session.add(new_standard)
         
         db.session.commit()
 
@@ -236,9 +239,11 @@ def set_servicestandards():
         return redirect(url_for('index'))
     
     if request.method == "GET":
-        if sid:
+        service_id = contract.get("sid", "")
+        
+        if service_id:
             # Tech debt - use select query method
-            standards = ServiceStandard.query.filter_by(sid=sid).all()
+            standards = ServiceStandard.query.filter_by(sid=service_id).all()
     
         # Store standards in session for later use
         session['serviceStandards'] = [s.to_dict() for s in standards]
@@ -256,16 +261,29 @@ def delete_standard(stdid):
 
 @app.route('/servicearrangements', methods=['GET', 'POST'])
 def manage_servicearrangements():
-    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    sid = session.get('sid', '')
-    
+
+    session_contract = session.get('sessionContract') or None
+    if not session_contract:
+        flash("Pick a Candidate/Service Provider before continuing.", "error")
+        return redirect(url_for('index'))
+    else:
+        contract = {}
+        # Load existing contract data if available
+        contract = gather_data(session_contract)
+        if contract:
+            session['sessionContract'] = contract
+            session["candidateName"] = contract.get("candidateName", "")
+            service_id = contract.get("sid", "")
+
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']   
     if request.method == 'POST':
         for day in days:
             # Tech debt: use select query
-            row = ServiceArrangement.query.filter_by(sid=sid,day=day).first()
+            row = ServiceArrangement.query.filter_by(sid=service_id,day=day).first()
             if not row:
-                row = ServiceArrangement(sid=sid, day=day)
-
+                row = ServiceArrangement()
+                row.sid = service_id
+                row.day = day
                 db.session.add(row)
 
             if day in "Saturday Sunday":
@@ -283,10 +301,10 @@ def manage_servicearrangements():
         specialconditions = raw.strip() if isinstance(raw, str) else ''
 
         contract_record = db.session.scalar(
-            select(ContractModel).where(ContractModel.sid == sid)
+            select(ContractModel).where(ContractModel.sid == service_id)
         )
         if contract_record is None:
-            abort(404, f"No contract found for sid={sid!r}")
+            abort(404, f"No contract found for sid={service_id!r}")
 
         contract_record.specialconditions = specialconditions
         db.session.commit()
@@ -295,7 +313,7 @@ def manage_servicearrangements():
 
         return redirect(url_for('index'))
 
-    arr_stmt = select(ServiceArrangement).where(ServiceArrangement.sid == sid)
+    arr_stmt = select(ServiceArrangement).where(ServiceArrangement.sid == service_id)
 
     # Execute the query using session
     arr_records = db.session.execute(arr_stmt).scalars().all()
@@ -303,11 +321,12 @@ def manage_servicearrangements():
     # Build the dictionary    
     arrangements = {row.day: row for row in arr_records}
 
-    contract_stmt = select(ContractModel).where(ContractModel.sid == sid)   
-    contract_record = db.session.execute(contract_stmt).scalar_one_or_none()
+    if service_id:
+        contract_stmt = select(ContractModel).where(ContractModel.sid == service_id)   
+        contract_record = db.session.execute(contract_stmt).scalar_one_or_none()
 
-    # Store arrangements in session for later use
-    session['serviceArrangements'] = [s.to_dict() for s in arr_records]
+        # Store arrangements in session for later use
+        session['serviceArrangements'] = [s.to_dict() for s in arr_records]
  
     return render_template('arrangements.html', arrangements=arrangements, contract=contract_record)
 
@@ -451,11 +470,26 @@ def prepare_sp_msa():
     return render_template('spmsa.html', contract=contract)
 
 
+@app.route('/candidate_validate_ch', methods=['POST'])
+def candidate_validate_ch():
+    company_number = request.form.get('CandidateLtdNo', '')
+    company_name = request.form.get('CandidateLtdCo', '')
+    result = validateCH(company_number, company_name)
+    if result is None:
+        # Return an empty JSON object or a message
+        return jsonify({'error': 'No result found'}), 404
+    return jsonify(result)
+
+
 @app.route('/download_sp_msa', methods=['POST'])
 def download_sp_msa():
 
     # Get session data
     contract = session.get('sessionContract', {})
+    if not contract:
+        flash("Set a Service Provider before continuing.", "error")
+        return redirect(url_for('index'))
+
     agreement_date = request.form.get('AgreementDate', '')
     
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
@@ -465,7 +499,7 @@ def download_sp_msa():
     data_rows = []
     row = {}
     row["AgreementDate"] = f_agreement_date
-    fields = ["candidatename", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress"]
+    fields = ["candidateName", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress"]
     
     export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress"]
     
@@ -531,13 +565,11 @@ def download_client_msa():
     # Get session data
     contract = session.get('sessionContract', {})
     agreement_date = request.form.get('AgreementDate', '')
+    f_agreement_date = ''
 
-    if agreement_date == '':
-        flash("Please select an agreement date.", "error")
-        return redirect(url_for('prepare_client_msa'))
-    
-    f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
-    f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+    if agreement_date != '':
+        f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
+        f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
     # Build rows
     data_rows = []
@@ -550,7 +582,7 @@ def download_client_msa():
     # Populate row with contract fields
     # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
-        if ( raw_field == "jurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
+        if ( raw_field == "companyjurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
             field = "England and Wales"
         elif ( raw_field == "candidatename" ):
             field = formatName(contract.get(raw_field,''))
@@ -588,14 +620,36 @@ def download_client_msa():
     final_output = BytesIO()
     wb.save(final_output)
     final_output.seek(0)
-
-    return send_file(
-        final_output,
-        as_attachment=True,
-        download_name=f"{contract.get('companyname')} Client MSA.xlsx",
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
     
+    # Tech Debt: load credentials from config
+
+    site_url = "https://jjag.sharepoint.com/sites/InternalTeam"
+
+    cert_settings = {
+        'client_id': '51d03106-4726-442c-86db-70b32fa7547f', 
+        'thumbprint': "6B36FBFC86FB1C019EB6496494B9195E6D179DDB",
+        'cert_path': 'mycert.pem'
+    }
+    #ctx = ClientContext(site_url).with_credentials(UserCredential(username, password))
+    ctx = ClientContext(site_url).with_client_certificate('changespecialists.co.uk', **cert_settings)
+
+    target_url = f"{site_url}/Shared Documents/Mike/Uploads"
+    download_name=f"{contract.get('companyname')} Client MSA.xlsx"
+
+    # returns target_file.serverRelativeUrl
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url, ctx)
+
+    if uploaded_file:    
+        return "Success", 200
+    else:
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=f"{contract.get('companyname')} Client MSA.xlsx",
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
 
 @app.route('/chfetch', methods=['POST'])
 def get_company_number():
@@ -615,10 +669,10 @@ def get_company_number():
 
 # --- Tiny in-memory cache to reduce API calls while typing ---
 CACHE_TTL = 60  # seconds
-_cache: dict[str, tuple[float, List[str]]] = {}
+_cache: dict[str, tuple[float, List[dict]]] = {}
 
 
-def _cache_get(q: str) -> List[str] | None:
+def _cache_get(q: str) -> List[dict] | None:
     now = time.time()
     if q in _cache:
         ts, data = _cache[q]
@@ -629,13 +683,13 @@ def _cache_get(q: str) -> List[str] | None:
     return None
 
 
-def _cache_set(q: str, data: List[str]) -> None:
+def _cache_set(q: str, data: List[dict]) -> None:
     _cache[q] = (time.time(), data)
 
 
-def fetch_candidates(query: str) -> List[str]:
+def fetch_candidates(query: str) -> List[dict]:
     """
-    Call the upstream API and normalise into a list of strings.
+    Call the Colleague7 API to fetch candidates matching the query.
     """
     if not query:
         return []
@@ -650,48 +704,47 @@ def fetch_candidates(query: str) -> List[str]:
     if Config.find_by_name("C7 Key") is None:
         loadConfig()
 
-    subscription_key = Config.find_by_name("C7 Key")
     user_id = Config.find_by_name("C7 Userid")
-    headers = {
-            'Ocp-Apim-Subscription-Key': subscription_key,
-            'Cache-Control': 'no-cache'
-        }
+    hdr = Config.find_by_name("C7 HDR")
 
     # Build request
     payload = []
     try:
         candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={query}"            
-        candidate_search_response = requests.get(candidate_url, headers=headers)                   
+        candidate_search_response = requests.get(candidate_url, headers=hdr)                   
         if candidate_search_response.status_code == 200:
             payload = candidate_search_response.json()
     except:        
         return []
     
     # Normalise to list[str] — tweak this for your API’s schema
-    results: List[str] = []
+    results = []
     
     for candidate_id in payload:
-                
-        candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Get?UserId={user_id}&CandidateId={candidate_id}"
-        candidate_response = requests.get(candidate_url, headers=headers)
-                
-        # move on to next candidate if no record found - very unlikely?
-        if candidate_response.status_code != 200:
+
+        candidate_data = getC7Candidate(candidate_id, query)
+        if not candidate_data:
             continue
 
-        candidate_data = candidate_response.json()
-        
-        surname = candidate_data.get("Surname","")
-        forenames = candidate_data.get("Forenames","")
-        candidate_name = f"{surname}, {forenames}"
-        results.append(candidate_name)
+        candidate_dict = {
+            "candidateId": candidate_data.get("candidateId",0) or candidate_data.get("candidateid",0),
+            "candidateName": candidate_data.get("name",""),
+            "candidateEmail": candidate_data.get("email",""),
+            "candidatePhone": candidate_data.get("phone",""),
+            "candidateLtdName": candidate_data.get("ltd_name",""),
+            "candidateLtdRegNo": candidate_data.get("registration_number",""),
+            "candidateJurisdiction": candidate_data.get("jurisdiction",""),
+            "candidateAddress": candidate_data.get("address",""),
+        }
+
+        results.append(candidate_dict)
 
     # Update cache
     _cache_set(qkey, results)
     return results
 
 
-def fetch_clients(query: str) -> List[str]:
+def fetch_clients(query: str) -> List[dict]:
     """
     Normalise clients into a list of strings.
     """
@@ -710,23 +763,23 @@ def fetch_clients(query: str) -> List[str]:
     else:
         payload = Company.get_all_companies()
     
-    if len(payload) == 0:
-        return[]
+    results: List[dict] = []
 
-    results: List[str] = []
-
-    for client in payload:
-        if client.companyname.lower().startswith(qkey):
-            results.append(client.companyname)
+    if isinstance(payload,list):
+        if len(payload) == 0:
+            return[]
+        for client in payload:
+            if client.companyname.lower().startswith(qkey):
+                results.append(client.companyname)
 
     # Update cache
     _cache_set(qkey, results)
     return results
 
 
-def fetch_contacts(qclient: str, qcontact: str) -> List[str]:
+def fetch_contacts(qclient: str, qcontact: str) -> List[dict]:
     """
-    Normalise clients into a list of strings.
+    Normalise client contacts into a list of strings.
     """
     if not qclient:
         return []
@@ -738,19 +791,19 @@ def fetch_contacts(qclient: str, qcontact: str) -> List[str]:
         return cached
 
     payload = getContactsByCompany(qclient)
-    
-    if len(payload) == 0:
-        return[]
+    results: List[dict] = []
 
-    results: List[str] = []
+    if isinstance(payload, list):
+        if len(payload) == 0:
+            return []
 
-    for clientcontact in payload:     
-        contact_data = {}
-        if clientcontact.get("ContactName", "").lower().startswith(qkey):   
-            contact_data["ContactName"] = clientcontact.get("ContactName", "")
-            contact_data["ContactEmail"] = clientcontact.get("ContactEmail", "")
-            contact_data["ContactPhone"] = clientcontact.get("ContactPhone", "")
-            results.append(contact_data)
+        for clientcontact in payload:
+            contact_data = {}
+            if clientcontact.get("ContactName", "").lower().startswith(qkey):   
+                contact_data["ContactName"] = clientcontact.get("ContactName", "")
+                contact_data["ContactEmail"] = clientcontact.get("ContactEmail", "")
+                contact_data["ContactPhone"] = clientcontact.get("ContactPhone", "")
+                results.append(contact_data)
 
     # Update cache
     _cache_set(qkey, results)
@@ -780,9 +833,40 @@ def list_to_dict(prefix_list):
             result[key] = value
     return result
 
-@app.route('/validate_ch', methods=['POST'])
-def validate_ch():
+
+@app.route('/client_validate_ch', methods=['POST'])
+def client_validate_ch():
     company_number = request.form.get('company_number', '')
-    company_name = request.form.get('company_name', '')    
+    company_name = request.form.get('company_name', '')
     result = validateCH(company_number, company_name)
+    if result is None:
+        # Return an empty JSON object or a message
+        return jsonify({'error': 'No result found'}), 404
     return jsonify(result)
+
+
+@app.route('/candidatefetch', methods=['POST'])
+def candidatefetch():
+    candidate_name = request.form.get('CandidateName', '')
+    if candidate_name:
+        result = searchC7Candidate(candidate_name)
+
+        if not result:
+            return jsonify({'error': 'No candidates found'}), 404
+        
+    return jsonify(result)
+
+
+@app.post("/contract/candidate")
+def set_contract_candidate():
+    data = request.get_json(force=True) or {}
+    cand_id = data.get("candidateId")
+    if not cand_id:
+        return jsonify(error="candidateId required"), 400
+
+    contract = session.get("sessionContract", {})
+    contract["candidateId"] = cand_id
+    session["sessionContract"] = contract
+    session["candidateName"] = data.get("candidateName")
+    session.modified = True
+    return ("", 204)
