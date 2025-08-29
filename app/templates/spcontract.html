@@ -17,9 +17,47 @@
 
 <form action="/download_sp_contract" method="post">
 
-    <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
     <div>
-        <input type="date" name="AgreementDate" placeholder="Agreement Date" required>    
+        <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
+        <div>
+            <input type="date" name="AgreementDate" placeholder="Agreement Date" required>    
+        </div>
+    </div>
+    <div>
+        <label for="CandidateName" class="index-label"><strong>Service Provider</strong></label>
+        <div>
+            <input type="text" name="CandidateName" placeholder="Enter Service Provider" required>
+        </div>
+    </div>
+    <div>
+        <label for="ClientName" class="index-label"><strong>Client Name</strong></label>    
+        <div>
+            <input type="text" name="ClientName" placeholder="Enter Client Name" required>
+        </div>
+    </div>
+    <div>
+        <label for="ClientContact" class="index-label"><strong>Client Contact</strong></label>    
+        <div>
+            <input type="text" name="ClientContact" placeholder="Enter Client Contact" required>
+        </div>
+    </div>  
+    <div>
+        <label for="StartDate" class="index-label"><strong>Start Date</strong></label>
+        <div>
+            <input type="date" name="StartDate" placeholder="Start Date" required>    
+        </div>
+    </div>
+    <div>
+        <label for="EndDate" class="index-label"><strong>End Date</strong></label>
+        <div>
+            <input type="date" name="EndDate" placeholder="End Date" required>    
+        </div>
+    </div>
+    <div>
+        <label for="Rate" class="index-label"><strong>Rate</strong></label>
+        <div>
+            <input type="text" name="Rate" placeholder="Enter Rate" required>    
+        </div>
     </div>
     <input type="submit" class="button" id="submit-btn" value="Submit">
     <a href="{{ url_for('index') }}" class="button">Back</a>
