@@ -30,20 +30,12 @@
         <div> <!-- column 2 - data views -->
             <div>
                 <form action="colleaguedata" method="get">
-                    {% if session['sessionContract'] %}
-                        <input type="submit" value="Colleague Data" id="add-btn" class="button"/>
-                    {% else %}
-                        <input type="submit" value="Colleague Data" id="submit-btn" class="button"/>
-                    {% endif %}        
+                    <input type="submit" value="Colleague Data" id="submit-btn" class="button"/>     
                 </form>
             </div>
             <div>
                 <form action="servicestandards" method="get">
-                    {% if session['serviceStandards'] %}
-                        <input type="submit" value="Service Standards" id="add-btn" class="button"/>
-                    {% else %}
-                        <input type="submit" value="Service Standards" id="submit-btn" class="button"/>
-                    {% endif %}
+                    <input type="submit" value="Service Standards" id="submit-btn" class="button"/>
                 </form>
             </div>
             <div>
@@ -58,31 +50,31 @@
             </div>
         </div>
         <div> <!-- column 3 - documents -->
-            <div>  
-                <form action="clientmsa" method="get">
-                    <input type="submit" value="Client MSA" id="submit-btn" class="button"/>
+            <div>       
+                <form action="spnda" method="get">
+                    <input type="submit" value="Service Provider NDA" id="submit-btn" class="button"/>                        
                 </form>
-            </div>              
+            </div>             
             <div>  
                 <form action="spmsa" method="get">
-                    <input type="submit" value="Candidate MSA" id="submit-btn" class="button"/>
+                    <input type="submit" value="Service Provider MSA" id="submit-btn" class="button"/>
                 </form>
-            </div>    
-            <div>       
-                <form action="clientcontract" method="get">
-                    <input type="submit" value="Client Contract" id="submit-btn" class="button"/>                        
-                </form>
-            </div>            
+            </div>   
             <div>       
                 <form action="spcontract" method="get">
                     <input type="submit" value="Service Provider Contract" id="submit-btn" class="button"/>                        
                 </form>
-            </div>            
-            <div>       
-                <form action="candidatenda" method="get">
-                    <input type="submit" value="Candidate NDA" id="submit-btn" class="button"/>                        
+            </div>  
+            <div>  
+                <form action="clientmsa" method="get">
+                    <input type="submit" value="Client MSA" id="submit-btn" class="button"/>
                 </form>
-            </div>            
+            </div>   
+            <div>       
+                <form action="clientcontract" method="get">
+                    <input type="submit" value="Client Contract" id="submit-btn" class="button"/>                        
+                </form>
+            </div>                                  
         </div>    
     </div>
 

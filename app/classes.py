@@ -24,12 +24,14 @@ class Company:
     counter = 0
     _instances = []
 
-    def __init__(self, companyname, address, email, phone, companyNumber):
+    def __init__(self, companyid, companyname, address, email, phone, companyNumber, jurisdiction ):
+        self.companyId = companyid
         self.companyname = companyname
         self.address = address
         self.emailaddress = email
         self.phone = phone
         self.companyNumber = companyNumber
+        self.jurisdiction = jurisdiction
         Company.counter += 1 # increment the company counter
         Company._instances.append(self)
 

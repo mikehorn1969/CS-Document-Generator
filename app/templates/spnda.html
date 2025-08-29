@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+
+{% extends "base.html" %}
+{% block title %}CS Document Generator{% endblock %}
+{% block head %}
+    {{ super() }}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<h1>Service Provider NDA</h1>
+
+<div class="clientgrid">
+    <div> <!-- Left column -->
+        <form action="/download_sp_nda" method="post">
+            <div>
+                <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
+                <div>
+                    <input type="date" name="AgreementDate" placeholder="Agreement Date" \
+                        value="{{ contract['AgreementDate'] if contract and contract.get('AgreementDate') else '' }}" required>
+                </div>
+            </div>
+            <div>
+                <label for="candidate-name" class="index-label"><strong>Name</strong></label>    
+                <div>
+                    <input type="text" id="candidate-name" name="candidate-name" placeholder="Type a candidate surname..." autocomplete="off" \
+                        class="name-textbox" value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}">                    
+                    <div id="suggestions"></div>
+                </div>        
+            </div>
+            <div>
+                <!-- Tech Debt: hide this field-->
+                <input type='text' name='candidateId' id="candidateId">
+            </div>
+            <div>
+                <input type="submit" class="button" id="submit-btn" value="Submit">
+                <a href="{{ url_for('index') }}" class="button">Back</a>
+            </div>
+        </form>
+    </div>
+    
+    <div> <!-- Right column -->        
+            <label for="address" class="index-label"><strong>Address</strong></label>    
+            <div>
+                <input type="text" name="address" id="address" placeholder="Address" class="address-textbox" \
+                    value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}" \
+                    required formaction="/download_sp_nda">
+            </div>
+        </div>        
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        $("#candidate-name").on("input", function() {
+            let query = $(this).val();
+            if (query.length > 2) {
+                $.getJSON("/searchcandidates", { q: query }, function (data) {
+                    const $sugs = $("#suggestions").empty();
+                    data.forEach(function (item) {
+                        const $row = $('<div class="candidate-suggestion"></div>')
+                        .text(item.candidateName)
+                        .data({                            
+                            candidateAddress: item.candidateAddress || "",
+                            candidateId: item.candidateId || ""
+                        });
+                        $sugs.append($row);
+                    });
+                });
+
+            } else {
+                $("#suggestions").empty();
+            }
+        });
+
+       $("#suggestions").on("click", ".candidate-suggestion", function() {
+            const $s = $(this);
+            $("#candidate-name").val($s.text());            
+            $("#address").val($s.data("candidateAddress"));
+            $("#candidateId").val($s.data("candidateId"));
+            
+            const payload = { candidateId: $s.data("candidateId") };
+
+            $("#suggestions").empty();
+            
+            $.ajax({
+                url: "/contract/candidate",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(payload)
+            }).fail(xhr => console.error("Save failed:", xhr.responseText));
+
+        });
+    });
+</script>
+
+{% endblock %}

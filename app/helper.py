@@ -63,11 +63,14 @@ def loadAzureKeys():
 
 
 def formatName(name_string):
-    name_part = name_string.split(":")[0].strip()
-    name_array = name_part.split(" ")
-    surname_posn = len(name_array) - 1
+
+    name_array = name_string.split(",")
+    forename_part = name_array[1].strip() if len(name_array) > 1 else ""
+    surname_part = name_array[0].strip()
+
+    name_part = surname_part.split(":")[0].strip()
     
-    return f"{name_array[0]} {name_array[surname_posn]}"
+    return f"{forename_part} {name_part}"
 
 
 def synonymsOf(word):

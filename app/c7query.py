@@ -2,7 +2,7 @@
 
 import requests, string
 from app.classes import Company, Contact, Config, Requirement, Candidate
-from app.helper import loadConfig
+from app.helper import loadConfig, formatName
 import re
 from datetime import datetime
 from chquery import searchCH, getCHbasics 
@@ -161,7 +161,8 @@ def getC7Clients():
             "userId": user_id,
             "allColumns": False,
             "columns": ["CompanyId", "CompanyName", "AddressLine1", "AddressLine2", "AddressLine3", 
-                        "City", "Postcode", "telephoneNumber", "companyEmail", "registrationNumber"],
+                        "City", "Postcode", "telephoneNumber", "companyEmail", "registrationNumber",
+                        "CompanyRegistrationNumber"],
             "includeArchived": False,
             "parameters": [{
                 "fieldName": "DateCreated",
@@ -175,8 +176,9 @@ def getC7Clients():
         response_json = response.json()
 
         # Extract desired fields
-        # companyname, name, address, emailaddress, phone, title    
+        # companyname, name, address, emailaddress, phone    
         for item in response_json:
+            CompanyId = item.get("CompanyId", "")
             AddressLine1 = item.get("AddressLine1", "")
             AddressLine2 = item.get("AddressLine2", "")
             AddressLine3 = item.get("AddressLine3", "")
@@ -185,14 +187,18 @@ def getC7Clients():
             CompanyId = item.get("CompanyId", "")
             CompanyName = item.get("CompanyName", "")
             Postcode = item.get("Postcode", "")
-            RegistrationNumber = item.get("RegistrationNumber", "")
             TelephoneNumber = item.get("TelephoneNumber", "")
+            RegistrationNumber = item.get("CUSTOM_Company Registration Number", "")
         
-            RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (AddressLine3 or "") + ", " + (City or "") + ", " + (Postcode or "")
-            CompanyAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
-                
+            Jurisdiction = ""
+            if (CompanyName and RegistrationNumber):
+                CompanyAddress, Jurisdiction = getCHbasics(CompanyName, RegistrationNumber)
+            else:
+                RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (AddressLine3 or "") + ", " + (City or "") + ", " + (Postcode or "")
+                CompanyAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
+
             # create a new Company instance
-            new_contact = Company(CompanyName, CompanyAddress, CompanyEmail, TelephoneNumber, RegistrationNumber)
+            new_contact = Company(CompanyId, CompanyName, CompanyAddress, CompanyEmail, TelephoneNumber, RegistrationNumber, Jurisdiction) 
 
         return Company.get_all_companies()        
 
@@ -214,7 +220,7 @@ def getContactsByCompany(CompanyName):
             "userId": user_id,
             "allColumns": False,
             "columns": ["ContactId", "CompanyName", "Forenames", "Surname", "AddressLine1", "AddressLine2", "AddressLine3", 
-                        "City", "Postcode", "EmailAddress", "ContactNumber", "Title"],
+                        "City", "Postcode", "EmailAddress", "ContactNumber", "JobTitle"],
             "includeArchived": False,
             "parameters": [{
                 "fieldName": "CompanyName",
@@ -238,13 +244,13 @@ def getContactsByCompany(CompanyName):
             Postcode = item.get("Postcode", "")
             EmailAddress = item.get("EmailAddress", "")
             TelephoneNumber = item.get("ContactNumber", "")
-            Title = item.get("Title", "")
+            JobTitle = item.get("JobTitle", "")
 
             ContactName = (Forenames or "") + " " + (Surname  or "")
             RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (Addressline3 or "") + ", " + (City or "") + ", " + (Postcode or "")
             
             ContactAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
-            new_contact = Contact(CompanyName, ContactName, ContactAddress, EmailAddress, TelephoneNumber, Title)
+            new_contact = Contact(CompanyName, ContactName, ContactAddress, EmailAddress, TelephoneNumber, JobTitle)
 
             contacts.append({
                 "ContactId": ContactId,
@@ -253,7 +259,7 @@ def getContactsByCompany(CompanyName):
                 "ContactAddress": ContactAddress,
                 "ContactEmail": EmailAddress,
                 "ContactPhone": TelephoneNumber,
-                "ContactTitle": Title
+                "ContactTitle": JobTitle
             })
 
         return contacts
@@ -614,10 +620,13 @@ def loadCandidates():
     return candidate_list
 
 
-def gather_data(candidate_id):
+def gather_data(session_contract):
     contract = {}   
-    s_candidate_id = candidate_id.get("candidateId", 0)     
-    c7contractdata = getC7contract(s_candidate_id)
+    c7contractdata = {}
+
+    if session_contract:
+        candidate_id = session_contract.get("candidateId", 0)     
+        c7contractdata = getC7contract(candidate_id)
 
     if c7contractdata:                   
         contract['sid'] = c7contractdata.get("sid", "")
@@ -642,7 +651,7 @@ def gather_data(candidate_id):
         contract['requirementid'] = c7contractdata.get("requirementid", 0)
         contract['candidateId'] = c7contractdata.get("candidateId", 0)
         contract['placementid'] = c7contractdata.get("placementid", 0)
-        contract['candidateName'] = c7contractdata.get("candidateName", "")
+        contract['candidateName'] = formatName(c7contractdata.get("candidateName", ""))
         contract['candidateaddress'] = c7contractdata.get("candidateaddress", "")
         contract['candidateemail'] = c7contractdata.get("candidateemail", "")
         contract['candidatephone'] = c7contractdata.get("candidatephone", "")

@@ -9,11 +9,9 @@
 
 <h1>Client MSA</h1>
 
-
-
 <div class="clientgrid">
     <div> <!-- Left column -->
-        <form action="/download_client_msa" method="post">
+        <form id = "submit_client_msa" action="/download_client_msa" method="post">
             <div>
                 <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>    
                 <div>        
@@ -26,6 +24,7 @@
                     <input type="text" id="clientname" name="clientname" placeholder="Type a client name..." autocomplete="off" class="name-textbox" value="{{ contract['companyname'] if contract and contract.get('companyname') else '' }}" required>
                         <div id="suggestions"></div>
                 </div>
+                <input type='hidden' name='clientId' id="clientId" value="{{ contract['companyid'] if contract and contract.get('companyid') else '' }}">
             </div>
             <div>
                 <input type="submit" name="btSumbit" class="button" id="submit-btn" value="Submit" required>
@@ -38,7 +37,7 @@
             <div>
                 <label for="RegNumber" class="index-label"><strong>Company Registration Number</strong></label>    
                 <div>
-                    <input type="text" id="RegNumber" name="RegNumber" placeholder="Company Number" value="{{ contract['companyregistrationnumber'] if contract and contract.get('companyregistrationnumber') else '' }}" required>
+                    <input type="text" id="RegNumber" name="RegNumber" placeholder="Company Number" value="{{ contract['companyregistrationnumber'] if contract and contract.get('companyregistrationnumber') else '' }}" required form="submit_client_msa">
                     <input type="submit" name="btFetch" class="small-button" id="fetch-btn" value="Fetch" formaction="/chfetch">                    
                     <button type="button" id="btvalidate" class="small-button">Validate</button>
                 </div>
@@ -46,26 +45,39 @@
             <div>
                 <label for="RegAddress" class="index-label"><strong>Registered Office</strong></label>    
                 <div>
-                    <input type="text" id="RegAddress" name="RegAddress" placeholder="Registered Office Address" class="address-textbox" value="{{ contract['companyaddress'] if contract and contract.get('companyaddress') else '' }}" required>
+                    <input type="text" id="RegAddress" name="RegAddress" placeholder="Registered Office Address" class="address-textbox" value="{{ contract['companyaddress'] if contract and contract.get('companyaddress') else '' }}" required form="submit_client_msa">
+                </div>
+            </div>    
+            <div>
+                <label for="Jurisdiction" class="index-label"><strong>Legal jurisdiction</strong></label>    
+                <div>
+                    <input type="text" id="Jurisdiction" name="Jurisdiction" placeholder="Jurisdiction" class="address-textbox" value="{{ contract['companyjurisdiction'] if contract and contract.get('companyjurisdiction') else '' }}" required form="submit_client_msa">
                 </div>
             </div>    
             <div>
                 <label for="contactname" class="index-label"><strong>Client Contact</strong></label>    
                 <div>
-                    <input type="text" id="contactname" name="contactname" placeholder="Type a contact name..." autocomplete="off" class="name-textbox" value="{{ contract['contactname'] if contract and contract.get('contactname') else '' }}" required>
+                    <input type="text" id="contactname" name="contactname" placeholder="Type a contact name..." autocomplete="off" class="name-textbox" value="{{ contract['contactname'] if contract and contract.get('contactname') else '' }}" required form="submit_client_msa">
                         <div id="contactsuggestions"></div>
                 </div>
+                <input type='hidden' name='contactId' id="contactId" value="{{ contract['contactid'] if contract and contract.get('contactid') else '' }}">
             </div>
             <div>
-                <label for="ContactEmail" class="index-label"><strong>Email address</strong></label>
+                <label for="contactTitle" class="index-label"><strong>Job Title</strong></label>
                 <div>
-                    <input type="email" name="ContactEmail" placeholder="Contact email address" value="{{ contract['contactemail'] if contract and contract.get('contactemail') else '' }}" required>
+                    <input type="text" name="contactTitle" placeholder="Contact job title" value="{{ contract['contacttitle'] if contract and contract.get('contacttitle') else '' }}" required form="submit_client_msa">
                 </div>
             </div>
             <div>
-                <label for="ContactPhone" class="index-label"><strong>Phone</strong></label>
+                <label for="contactEmail" class="index-label"><strong>Email address</strong></label>
                 <div>
-                    <input type="tel" name="ContactPhone" placeholder="Contact phone number" value="{{ contract['contactphone'] if contract and contract.get('contactphone') else '' }}" required>
+                    <input type="email" name="contactEmail" placeholder="Contact email address" value="{{ contract['contactemail'] if contract and contract.get('contactemail') else '' }}" required form="submit_client_msa">
+                </div>
+            </div>
+            <div>
+                <label for="contactPhone" class="index-label"><strong>Phone</strong></label>
+                <div>
+                    <input type="tel" name="contactPhone" placeholder="Contact phone number" value="{{ contract['contactphone'] if contract and contract.get('contactphone') else '' }}" required form="submit_client_msa">
                 </div>
             </div>
         </form>
@@ -78,12 +90,22 @@
         // Client name suggestions
         $("#clientname").on("input", function() {
             let query = $(this).val();
-            if (query.length > 0) {
+            if (query.length > 2) {
                 $.getJSON("/searchclients", { q: query }, function(data) {
-                    let suggestions = $("#suggestions");
-                    suggestions.empty();
-                    data.forEach(function(item) {
-                        suggestions.append(`<div>${item}</div>`);
+                    const $sugs = $("#suggestions").empty();
+                    data.forEach(function (item) {
+                        const $row = $('<div class="client-suggestion"></div>')
+                        .text(item.clientName)
+                        .data({
+                            clientEmail: item.clientEmail || "",
+                            clientPhone: item.clientPhone || "",
+                            clientRegNo: item.clientRegNo || "",
+                            clientAddress: item.clientAddress || "",
+                            clientId: item.clientId || "",
+                            clientJurisdiction: item.clientJurisdiction || ""
+
+                        });
+                        $sugs.append($row);
                     });
                 });
             } else {
@@ -93,71 +115,86 @@
 
         $("#suggestions").on("click", "div", function() {
             $("#clientname").val($(this).text());
+            $("input[name='clientId']").val($(this).data("clientId"));
+            $("input[name='RegNumber']").val($(this).data("clientRegNo"));
+            $("input[name='RegAddress']").val($(this).data("clientAddress"));
+            $("input[name='Jurisdiction']").val($(this).data("clientJurisdiction"));
             $("#suggestions").empty();
         }); 
-    });   
+       
 
-    // Contact name suggestions
-    $("#contactname").on("input", function() {
-        let query = $(this).val();
-        if (query.length > 0) {
-            $.getJSON("/searchcontacts", { q: query, client: $("#clientname").val()}, function(data) {
-                let suggestions = $("#contactsuggestions");
-                suggestions.empty();
-                data.forEach(function(item) {
-                    // item should be an object: {ContactName, ContactEmail, ContactPhone}
-                    suggestions.append(`<div class="contact-suggestion" data-email="${item.ContactEmail || ''}" data-phone="${item.ContactPhone || ''}">${item.ContactName}</div>`);
+        // Contact name suggestions
+        $("#contactname").on("input", function() {
+            let query = $(this).val();
+            if (query.length > 2) {
+                $.getJSON("/searchcontacts", { q: query, client: $("#clientname").val()}, function(data) {
+                    
+                    const $sugs = $("#contactsuggestions").empty();   
+                    data.forEach(function (item) { // doesn't seem to return anything?
+                        const $row = $('<div class="contact-suggestion"></div>')
+                        .text(item.contactName)
+                        .data({
+                            contactEmail: item.contactEmail || "",
+                            contactPhone: item.contactPhone || "",
+                            contactId: item.contactId || "",
+                            contactTitle: item.contactTitle || ""
+                        });
+                        $sugs.append($row);
+                    });
                 });
-            });
-        } else {
-            $("#contactsuggestions").empty();
-        }
-    });
-
-    
-    $("#contactsuggestions").on("click", ".contact-suggestion", function() {
-        $("#contactname").val($(this).text());
-        $("#contactsuggestions").empty();
-        // Populate phone and email fields        
-        $("input[name='ContactEmail']").val($(this).data("email"));
-        $("input[name='ContactPhone']").val($(this).data("phone"));
-    });    
- 
-
-    // Fetch button
-    $("#fetch-btn").on("click", function(e) {
-            e.preventDefault();
-            let clientName = $("#clientname").val();
-            $.ajax({
-                type: "POST",
-                url: "/chfetch",
-                data: { clientname: clientName },
-                success: function(data) {
-                    $("#RegNumber").val(data.regnumber || "");
-                    $("#RegAddress").val(data.address || "");
-                }
-            });
-        });
-
-    // Validate button
-    $("#btvalidate").on("click", function() {
-        const company_number = document.getElementById('RegNumber').value;
-        const company_name = document.getElementById('clientname').value;
-        
-        fetch('/client_validate_ch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `company_number=${encodeURIComponent(company_number)}&company_name=${encodeURIComponent(company_name)}`
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.Valid) {
-                alert(data.Narrative || "Validation failed.");
             } else {
-                alert("Company is valid" + (data.IsDirector ? " and director is valid." : "."));
+                $("#contactsuggestions").empty();
             }
         });
-    });  
+
+
+        $("#contactsuggestions").on("click", ".contact-suggestion", function() {
+            $("#contactname").val($(this).text());
+            console.log("Selected contactId:", $(this).data("contactId"));
+            // Populate phone and email fields
+            $("input[name='contactId']").val($(this).data("contactId"));
+            $("input[name='contactEmail']").val($(this).data("contactEmail"));
+            $("input[name='contactPhone']").val($(this).data("contactPhone"));
+            $("input[name='contactTitle']").val($(this).data("contactTitle"));
+            $("#contactsuggestions").empty();
+        });   
+
+
+        // Fetch button
+        $("#fetch-btn").on("click", function(e) {
+                e.preventDefault();
+                let clientName = $("#clientname").val();
+                $.ajax({
+                    type: "POST",
+                    url: "/chfetch",
+                    data: { clientname: clientName },
+                    success: function(data) {
+                        $("#RegNumber").val(data.regnumber || "");
+                        $("#RegAddress").val(data.address || "");
+                    }
+                });
+            });
+
+        // Validate button
+        $("#btvalidate").on("click", function() {
+            const company_number = document.getElementById('RegNumber').value;
+            const company_name = document.getElementById('clientname').value;
+            
+            fetch('/client_validate_ch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `company_number=${encodeURIComponent(company_number)}&company_name=${encodeURIComponent(company_name)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.Valid) {
+                    alert(data.Narrative || "Validation failed.");
+                } else {
+                    alert("Company is valid" + (data.IsDirector ? " and director is valid." : "."));
+                }
+            });
+        });  
+    });
 
 </script>
 

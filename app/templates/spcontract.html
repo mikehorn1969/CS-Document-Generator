@@ -6,7 +6,7 @@
 
 {% block content %}
 
-<h1>Client Contract</h1>
+<h1>Service Provider Contract</h1>
 
 {% if session['sid'] %}
     <div>
@@ -15,14 +15,14 @@
     <br>
 {% endif %}
 
-<form action="/download_client_contract" method="post">
+<form action="/download_sp_contract" method="post">
 
     <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
     <div>
         <input type="date" name="AgreementDate" placeholder="Agreement Date" required>    
     </div>
-    <input type="submit" class="small-button" id="submit-btn" value="Submit">
-    <a href="{{ url_for('index') }}" class="small-button">Back</a>
+    <input type="submit" class="button" id="submit-btn" value="Submit">
+    <a href="{{ url_for('index') }}" class="button">Back</a>
     
     
 </form>
