@@ -7,3 +7,6 @@ launch.json
 **/__pycache__
 .pytest_cache
 sandbox
+*.log
+*.db
+migrations
