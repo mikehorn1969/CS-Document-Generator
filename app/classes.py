@@ -71,7 +71,7 @@ class Contact:
 
     @classmethod
     def count(cls):
-        print(f"Contact count: {cls.counter}")
+        return cls.counter
 
     @classmethod
     def get_all_contacts(cls):
@@ -123,7 +123,7 @@ class Requirement:
 
     @classmethod
     def count(cls):
-        print(f"Requirement count: {cls.counter}")
+        return cls.counter
 
     @classmethod
     def get_all_contacts(cls):
@@ -165,12 +165,12 @@ class Candidate:
         self.candidateName = candidatename
         self.companyNumber = ''
         
-        Candidate.counter += 1 # increment the company counter
+        Candidate.counter += 1 # increment the candidate counter
         Candidate._instances.append(self)
 
     @classmethod
     def count(cls):
-        print(f"Candidate count: {cls.counter}")
+        return cls.counter
 
     @classmethod
     def get_all_candidates(cls):
@@ -194,3 +194,43 @@ class Candidate:
                 return search_candidate
         return None
     
+
+class C7User:
+
+    counter = 0
+    _instances = []
+
+    def __init__(self, userid, emailaddress, username, jobtitle):                
+        self.userid = userid
+        self.emailAddress = emailaddress
+        self.username = username
+        self.jobTitle = jobtitle
+
+        C7User.counter += 1 # increment the user counter
+        C7User._instances.append(self)
+
+    @classmethod
+    def count(cls):
+        return cls.counter
+
+    @classmethod
+    def get_all_users(cls):
+        return cls._instances
+    
+    @classmethod
+    def find_by_name(cls, search_name):
+        for search_user in cls._instances:
+            if search_user.username == search_name:
+                return search_user
+        return None
+
+    @classmethod
+    def find_by(cls, field, value):
+        for search_user in cls._instances:
+
+            c_attr = getattr(search_user,field, None)
+            c_attr = str(c_attr).strip("{}").strip('"').strip("'")
+            
+            if c_attr == value:
+                return search_user
+        return None
