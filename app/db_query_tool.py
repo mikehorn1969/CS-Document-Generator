@@ -1,5 +1,8 @@
 from app import app, db
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def print_service_contracts():
     contracts = ServiceContract.query.all()

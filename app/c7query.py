@@ -1,14 +1,17 @@
 # c7query.py - Colleague 7 API queries
 
 import requests, string
-from app.classes import Company, Contact, Config, Requirement, Candidate
+from app import app, db
+from app.classes import Company, Contact, Config, Requirement, Candidate, C7User
 from app.helper import loadConfig, formatName
 import re
 from datetime import datetime
-from chquery import searchCH, getCHbasics 
+from app.chquery import searchCH, getCHbasics 
 from dateutil.relativedelta import relativedelta 
 from typing import Optional
-
+from sqlalchemy import select
+from app.models import ServiceArrangement, ServiceStandard
+from flask import Flask, session
 
 def getC7Company(company_id):
     
@@ -82,7 +85,7 @@ def getC7Contact(contact_id):
         print(e)
 
 
-def getC7Contacts():
+def loadC7ContactData():
      
     if Config.find_by_name("C7 Key") is None:
         loadConfig()
@@ -147,7 +150,7 @@ def getC7Contacts():
         return e
     
 
-def getC7Clients():
+def loadC7Clients():
     
     if Config.find_by_name("C7 Key") is None:
         loadConfig()
@@ -198,7 +201,7 @@ def getC7Clients():
                 CompanyAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
 
             # create a new Company instance
-            new_contact = Company(CompanyId, CompanyName, CompanyAddress, CompanyEmail, TelephoneNumber, RegistrationNumber, Jurisdiction) 
+            new_company = Company(CompanyId, CompanyName, CompanyAddress, CompanyEmail, TelephoneNumber, RegistrationNumber, Jurisdiction) 
 
         return Company.get_all_companies()        
 
@@ -410,7 +413,12 @@ def getC7contract(candidate_id):
     companyId= ""
     contactId= ""
     requirement_id= ""
-    experience_placement_id = ""                         
+    experience_placement_id = ""       
+    placedby = ""
+    dm_jobtitle = ""
+    dm_name = ""
+    dm_email = ""
+    dm_phone = ""
 
     if Config.find_by_name("C7 Key") is None:
         loadConfig()
@@ -455,6 +463,26 @@ def getC7contract(candidate_id):
             
             job_title = experience.get('placementJobTitle', '')
             company_name = experience.get('placementCompanyName', '')
+            placedby = experience.get('placementPlacedBy', '')
+            payload = []
+
+            if C7User.count() == 0:
+                payload = loadC7Users()
+            else:
+                payload = C7User.get_all_users()
+
+            if isinstance(payload,list):
+                if len(payload) != 0:
+                            
+                    foundit = False
+                    for user in payload:
+                        if user.userid == placedby:
+                            dm_jobtitle = user.jobTitle
+                            dm_name = user.username
+                            dm_email = user.emailAddress
+                            foundit = True
+                        if foundit:
+                            break
 
             # find requirements that match company & job title
             requirement_url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&JobTitle={job_title}"
@@ -578,7 +606,11 @@ def getC7contract(candidate_id):
                 "companyid": companyId,
                 "contactid": contactId,
                 "requirementid": requirement_id,
-                "placementid": experience_placement_id                                
+                "placementid": experience_placement_id,
+                "dmname": dm_name,
+                "dmtitle": dm_jobtitle,
+                "dmemail": dm_email,
+                "dmphone": dm_phone 
             }
 
 
@@ -621,14 +653,14 @@ def loadCandidates():
 
 
 def gather_data(session_contract):
-    contract = {}   
+    contract = {}
     c7contractdata = {}
 
     if session_contract:
         candidate_id = session_contract.get("candidateId", 0)     
         c7contractdata = getC7contract(candidate_id)
 
-    if c7contractdata:                   
+    if c7contractdata and isinstance(c7contractdata, dict):                   
         contract['sid'] = c7contractdata.get("sid", "")
         contract['servicename'] = c7contractdata.get("servicename", "")
         contract['companyaddress'] = c7contractdata.get("companyaddress", "")
@@ -663,8 +695,9 @@ def gather_data(session_contract):
         contract['contactid'] = c7contractdata.get("contactid", 0)  
         contract['noticeperiod'] = 4 # Default to 4 weeks, can be changed later
         contract['noticeperiod_unit'] = "weeks"  # Default to weeks, can be changed later
-        
-        
+        contract['dmname'] = c7contractdata.get("dmname", "")
+        contract['dmtitle'] = c7contractdata.get("dmtitle", "")
+        contract['dmemail'] = c7contractdata.get("dmemail", "")
         start_date = c7contractdata.get("startdate", "")
         end_date = c7contractdata.get("enddate", "")
         duration = "0 days" # Default duration
@@ -761,3 +794,62 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
         "address": candidate_address,
         "jurisdiction": candidate_jurisdiction
     }
+
+
+def loadC7Users():
+    
+    if Config.find_by_name("C7 Key") is None:
+        loadConfig()
+
+    user_id = Config.find_by_name("C7 Userid")
+    hdr = Config.find_by_name("C7 HDR")
+
+    try:       
+        url = f"https://coll7openapi.azure-api.net/api/User/Get?UserId={user_id}"        
+        response = requests.get(url, headers=hdr)
+
+        # Read and decode response
+        response_json = response.json()
+
+        # Extract desired fields
+        # userid, email, username & jobtitle
+        for item in response_json:
+            UserId = item.get("Userid", "")
+            Email = item.get("EmailAddress", "")
+            UserName = item.get("Username", "")
+            JobTitle = item.get("JobTitle", "")
+
+            # create a new User instance
+            new_user = C7User(UserId, Email, UserName, JobTitle)
+
+        return C7User.get_all_users()
+
+    except Exception as e:
+        return e
+    
+
+def loadServiceStandards(service_id):
+        
+    if not service_id:                
+        return
+    
+    stmt = select(ServiceStandard).where(ServiceStandard.sid == service_id)
+    standards = db.session.execute(stmt).scalars().all()
+
+    # Store standards in session for later use
+    session['serviceStandards'] = [s.to_dict() for s in standards]
+
+    return standards
+
+
+def loadServiceArrangements(service_id):
+    if not service_id:
+        return
+
+    stmt = select(ServiceArrangement).where(ServiceArrangement.sid == service_id)
+    arrangements = db.session.execute(stmt).scalars().all()
+
+    # Store arrangements in session for later use
+    session['serviceArrangements'] = [a.to_dict() for a in arrangements]
+
+    return arrangements
