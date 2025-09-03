@@ -2,6 +2,7 @@
 {% block title %}CS Contract Generator v2{% endblock %}
 {% block head %}
     {{ super() }}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -17,14 +18,130 @@
 
 <form action="/download_client_contract" method="post">
 
-    <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
     <div>
-        <input type="date" name="AgreementDate" placeholder="Agreement Date" required>    
+        <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
+        <div>
+            <input type="date" name="AgreementDate" placeholder="Agreement Date" \
+                value="{{ contract['AgreementDate'] if contract and contract.get('AgreementDate') else '' }}" required>    
+        </div>
+    </div>
+    <div>
+        <label for="clientname" class="index-label"><strong>Client</strong></label>
+        <div>
+            <input type="text" id="clientname" name="clientname" placeholder="Type a client name..." autocomplete="off" class="name-textbox" value="{{ contract['companyname'] if contract and contract.get('companyname') else '' }}" required>
+                <div id="client-suggestions"></div>
+        </div>
+        <input type='hidden' name='clientId' id="clientId" value="{{ contract['companyid'] if contract and contract.get('companyid') else '' }}">
+    </div>
+    
+    <div>
+        <label for="contactname" class="index-label"><strong>Client Contact</strong></label>    
+        <div>
+            <input type="text" id="contactname" name="contactname" placeholder="Type a contact name..." autocomplete="off" class="name-textbox" value="{{ contract['contactname'] if contract and contract.get('contactname') else '' }}" required form="submit_client_msa">
+                <div id="contact-suggestions"></div>
+        </div>
+        <input type='hidden' name='contactId' id="contactId" value="{{ contract['contactid'] if contract and contract.get('contactid') else '' }}">
+    </div> 
+
+    <div>
+        <label for="StartDate" class="index-label"><strong>Start Date</strong></label>
+        <div>
+            <input type="date" name="StartDate" placeholder="Start Date" \
+                value="{{ contract['startdate'] if contract and contract.get('startdate') else '' }}" required>    
+        </div>
+    </div>
+    <div>
+        <label for="EndDate" class="index-label"><strong>End Date</strong></label>
+        <div>
+            <input type="date" name="EndDate" placeholder="End Date" \
+                value="{{ contract['enddate'] if contract and contract.get('enddate') else '' }}" required>    
+        </div>
+    </div>
+    <div>
+        <label for="Rate" class="index-label"><strong>Rate</strong></label>
+        <div>
+            <input type="text" name="Rate" placeholder="Enter Rate" \
+                value="£{{ contract['charges'] if contract and contract.get('charges') else '' }}" required>    
+        </div>
     </div>
     <input type="submit" class="small-button" id="submit-btn" value="Submit">
     <a href="{{ url_for('index') }}" class="small-button">Back</a>
-    
-    
 </form>
+
+<script>
+    $(document).ready(function() {
+        
+        // Client name suggestions
+        $("#clientname").on("input", function() {
+            let query = $(this).val();
+            if (query.length > 2) {
+                $.getJSON("/searchclients", { q: query }, function(data) {
+                    const $sugs = $("#client-suggestions").empty();
+                    data.forEach(function (item) {
+                        const $row = $('<div class="client-suggestion"></div>')
+                        .text(item.clientName)
+                        .data({
+                            clientEmail: item.clientEmail || "",
+                            clientPhone: item.clientPhone || "",
+                            clientRegNo: item.clientRegNo || "",
+                            clientAddress: item.clientAddress || "",
+                            clientId: item.clientId || "",
+                            clientJurisdiction: item.clientJurisdiction || ""
+
+                        });
+                        $sugs.append($row);
+                    });
+                });
+            } else {
+                $("#client-suggestions").empty();
+            }
+        });
+
+        $("#client-suggestions").on("click", "div", function() {
+            $("#clientname").val($(this).text());
+            $("input[name='clientId']").val($(this).data("clientId"));
+            $("input[name='RegNumber']").val($(this).data("clientRegNo"));
+            $("input[name='RegAddress']").val($(this).data("clientAddress"));
+            $("input[name='Jurisdiction']").val($(this).data("clientJurisdiction"));
+            $("#client-suggestions").empty();
+        });
+
+
+        // Contact name suggestions
+        $("#contactname").on("input", function() {
+            let query = $(this).val();
+            if (query.length > 2) {
+                $.getJSON("/searchcontacts", { q: query, client: $("#clientname").val()}, function(data) {
+                    
+                    const $sugs = $("#contact-suggestions").empty();   
+                    data.forEach(function (item) { // doesn't seem to return anything?
+                        const $row = $('<div class="contact-suggestion"></div>')
+                        .text(item.contactName)
+                        .data({
+                            contactEmail: item.contactEmail || "",
+                            contactPhone: item.contactPhone || "",
+                            contactId: item.contactId || "",
+                            contactTitle: item.contactTitle || ""
+                        });
+                        $sugs.append($row);
+                    });
+                });
+            } else {
+                $("#contact-suggestions").empty();
+            }
+        });
+
+        $("#contact-suggestions").on("click", ".contact-suggestion", function() {
+            $("#contactname").val($(this).text());
+            console.log("Selected contactId:", $(this).data("contactId"));
+            // Populate phone and email fields
+            $("input[name='contactId']").val($(this).data("contactId"));
+            $("input[name='contactEmail']").val($(this).data("contactEmail"));
+            $("input[name='contactPhone']").val($(this).data("contactPhone"));
+            $("input[name='contactTitle']").val($(this).data("contactTitle"));
+            $("#contact-suggestions").empty();
+        });   
+    });
+</script>
 
 {% endblock %}

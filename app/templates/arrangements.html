@@ -11,8 +11,8 @@
     <br>
 {% endif %}
 
-<form method="post">
-    <table border="1">
+<form action="/servicearrangements" method="post">  
+    <table>
         <thead>
             <tr>
                 <th>Day</th>
@@ -42,16 +42,15 @@
             {% endfor %}
         </tbody>
     </table>
-    <form action="/servicestandards" method="post">   
-        <label for="SpecialConditions" class="index-label"><strong>Special conditions</strong></label>    
-        <div>
-            <textarea name="SpecialConditions" rows="8" cols="100" class="multi-line">{{ contract.specialconditions }}</textarea>     
-        </div> 
-        <br>
-        <button type="submit" class="button">Save Changes</button>
-        <a href="{{ url_for('index') }}" class="button">Back</a>
+
+    <label for="SpecialConditions" class="index-label"><strong>Special conditions</strong></label>    
+    <div>
+        <textarea name="SpecialConditions" rows="8" cols="100" class="multi-line">{{ contract.specialconditions }}</textarea>     
+    </div> 
+    <br>
+    <button type="submit" class="button">Save Changes</button>
+    <a href="{{ url_for('index') }}" class="button">Back</a>
         
-    </form>
 </form>
 
 {% endblock %}

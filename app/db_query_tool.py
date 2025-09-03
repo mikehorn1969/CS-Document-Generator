@@ -8,15 +8,18 @@ def print_service_contracts():
     contracts = ServiceContract.query.all()
     print(f"Found {len(contracts)} service contracts:")
     for c in contracts:
-        #c.candidatesurname = "Agada (nee Ujege) : BRG005"
-        #db.session.commit()
-        print(f"ID: {c.conid}, SID: {c.sid}, Candidate Name: {c.candidatename}, Service Name: {c.servicename}, Company: {c.companyname}, Surname: {c.candidatesurname}")
+        print(f"ID: {c.conid}, SID: {c.sid}, Special Conditions: {c.specialconditions}")
 
 
 def print_service_standards():
     standards = ServiceStandard.query.all()
     print(f"Found {len(standards)} service standards:")
     for s in standards:
+        # s.sid = "BRG003"
+        # db.session.execute(
+        #     db.update(ServiceStandard).where(ServiceStandard.stdid == s.stdid).values(sid=s.sid)
+        # )
+        # db.session.commit()
         print(f"ID: {s.stdid}, SID: {s.sid}, SSN: {s.ssn}, Description: {s.description}")
 
 def print_service_arrangements():

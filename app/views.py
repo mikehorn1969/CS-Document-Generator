@@ -27,7 +27,7 @@ def index():
 def search_candidates():
     q = request.args.get("q", "").strip()
     results = fetch_candidates(q)
-    session["candidateName"] = results[0].get("candidateName") if results else None
+    #session["candidateName"] = results[0].get("candidateName") if results else None
     return jsonify(results)
     
 
@@ -74,7 +74,7 @@ def colleaguedata():
         contract = gather_data(session_contract)
         if contract:
             session['sessionContract'] = contract
-            session["candidateName"] = contract.get("candidateName", "")
+            #session["candidateName"] = contract.get("candidateName", "")
 
     return render_template(
         'colleague.html', contractdata=contract)
@@ -118,11 +118,27 @@ def savecolleaguedata():
 
 @app.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
-
-
+    
+    # Get session data
+    session_contract = session.get('sessionContract', {})
+    service_id = session_contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Set a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('index'))
+    
     standards = []
     
+    if request.method == "GET":
+              
+        contract = {}
+        # Load existing contract data if available
+        contract = gather_data(session_contract)
+        if contract:
+            session['sessionContract'] = contract
+            #session["candidateName"] = contract.get("candidateName", "")
+
     if request.method == 'POST':
+
         # Gather standards data
         stdids = request.form.getlist('id')
         ssns = request.form.getlist('ssn')
@@ -144,7 +160,7 @@ def set_servicestandards():
                 else:   
                     if ssn.strip() and desc.strip():
                         new_standard = ServiceStandard()
-                        new_standard.sid = stdid
+                        new_standard.sid = service_id
                         new_standard.ssn = ssn.strip()
                         new_standard.description = rawDesc
                         db.session.add(new_standard)
@@ -157,24 +173,9 @@ def set_servicestandards():
             {'id': stdid, 'ssn': ssn, 'description': desc.strip().strip('"')}
             for stdid, ssn, desc in standards
         ]
-        return redirect(url_for('index'))
-    
-    if request.method == "GET":
 
-            session_contract = session.get('sessionContract') or None
-            if not session_contract:
-                flash("Pick a Candidate/Service Provider before continuing.", "error")
-                return redirect(url_for('index'))
-            else:
-                contract = {}
-                # Load existing contract data if available
-                contract = gather_data(session_contract)
-                if contract:
-                    session['sessionContract'] = contract
-                    session["candidateName"] = contract.get("candidateName", "")
-
-            standards = loadServiceStandards(contract.get("sid", ""))
-
+    # (re)load for display 
+    standards = loadServiceStandards(service_id) 
     return render_template('standards.html', standards=standards)
 
 
@@ -188,59 +189,99 @@ def delete_standard(stdid):
 
 @app.route('/servicearrangements', methods=['GET', 'POST'])
 def manage_servicearrangements():
-
     session_contract = session.get('sessionContract') or None
     if not session_contract:
         flash("Pick a Candidate/Service Provider before continuing.", "error")
         return redirect(url_for('index'))
-    
-    contract = {}
-    # Load existing contract data if available
+
+    # Load contract & current arrangements
     contract = gather_data(session_contract)
     if not contract:
         flash("Failed to load contract data.", "error")
         return redirect(url_for('index'))
-    
+
     session['sessionContract'] = contract
-    session["candidateName"] = contract.get("candidateName", "")
+    #session["candidateName"] = contract.get("candidateName", "")
     service_id = contract.get("sid", "")
-    arrangements = loadServiceArrangements(service_id)
 
-    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']   
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
     if request.method == 'POST':
+        # For each day, get or create, then update from form (or sensible defaults for new rows)
+        for day in days:
+            arrangement = (db.session.query(ServiceArrangement)
+                           .filter(ServiceArrangement.sid == service_id,
+                                   ServiceArrangement.day == day)
+                           .one_or_none())
 
-        if not arrangements:
-            for day in days:
-                row = ServiceArrangement()
-                row.sid = service_id
-                row.day = day
-                db.session.add(row)
+            is_weekend = day in {'Saturday', 'Sunday'}
 
-                if day in "Saturday Sunday":
-                    row.defaultserviceperiod = request.form.get(f'{day}_default', 'As agreed if required')
-                    row.atservicebase = request.form.get(f'{day}_base', 'As agreed if required')
-                    row.atclientlocation = request.form.get(f'{day}_client', 'As agreed if required')
-                    row.atotherlocation = request.form.get(f'{day}_other', 'Prior approval required')
+            def _default(field: str) -> str:
+                if is_weekend:
+                    if field == 'defaultserviceperiod':
+                        return 'As agreed if required'
+                    if field == 'atservicebase':
+                        return 'As agreed if required'
+                    if field == 'atclientlocation':
+                        return 'As agreed if required'
+                    if field == 'atotherlocation':
+                        return 'Prior approval required'
                 else:
-                    row.defaultserviceperiod = request.form.get(f'{day}_default', 'As specified 0800 - 1800')
-                    row.atservicebase = request.form.get(f'{day}_base', 'As specified')
-                    row.atclientlocation = request.form.get(f'{day}_client', 'As specified')
-                    row.atotherlocation = request.form.get(f'{day}_other', 'Prior approval required')
+                    if field == 'defaultserviceperiod':
+                        return 'As specified 0800 - 1800'
+                    if field == 'atservicebase':
+                        return 'As specified'
+                    if field == 'atclientlocation':
+                        return 'As specified'
+                    if field == 'atotherlocation':
+                        return 'Prior approval required'
+                return ''
 
+            if arrangement is None:
+                arrangement = ServiceArrangement(sid=service_id, day=day)
+                db.session.add(arrangement)
+
+            # Update from form (fall back to defaults when creating; fall back to existing otherwise)
+            arrangement.defaultserviceperiod = request.form.get(f'{day}_default',
+                                                                arrangement.defaultserviceperiod or _default('defaultserviceperiod'))
+            arrangement.atservicebase = request.form.get(f'{day}_base',
+                                                         arrangement.atservicebase or _default('atservicebase'))
+            arrangement.atclientlocation = request.form.get(f'{day}_client',
+                                                            arrangement.atclientlocation or _default('atclientlocation'))
+            arrangement.atotherlocation = request.form.get(f'{day}_other',
+                                                           arrangement.atotherlocation or _default('atotherlocation'))
+
+        # Special conditions (stored on the contract record if present)
         raw = request.form.get('SpecialConditions')
         specialconditions = raw.strip() if isinstance(raw, str) else ''
 
         contract_record = db.session.scalar(
             select(ContractModel).where(ContractModel.sid == service_id)
         )
-        if contract_record:
+        if not contract_record:
+            contract_record = ContractModel(sid=service_id, specialconditions=specialconditions)
+            db.session.add(contract_record)
+        else:
             contract_record.specialconditions = specialconditions
-            db.session.commit()
 
+        # Commit all changes once
+        db.session.commit()
+
+        # Persist to session for later exports
         session['specialConditions'] = specialconditions
-
-        return redirect(url_for('index'))
- 
+    
+    # GET: (re)load for display
+    arr_list = loadServiceArrangements(service_id) or []  # returns list and sets session cache      
+    # Make a mapping keyed by day so Jinja can do arrangements.get("Monday")
+    arrangements = {
+        (row.get('day') if isinstance(row, dict) else row.day): row
+        for row in arr_list
+    }
+    contract_record = db.session.scalar(
+        select(ContractModel).where(ContractModel.sid == service_id)
+    )
+    if contract_record:
+        contract['specialconditions'] = contract_record.specialconditions or ''
     return render_template('arrangements.html', arrangements=arrangements, contract=contract)
 
 
@@ -253,25 +294,44 @@ def prepare_client_contract():
     # Load existing contract data if available
     contract = gather_data(session_contract)
     if contract:
-        session['sessionContract'] = contract        
+        session['sessionContract'] = contract
         session["clientName"] = contract.get("clientName", "")
-    return render_template('clientcontract.html',sid=contract)
+
+    # format start and end dates so they will populate date picker input correctly
+    # first check if the date is in the expected format
+    if contract and contract.get('startdate'):
+        startdate_obj = datetime.strptime(contract['startdate'], "%d/%m/%Y")
+        contract['startdate'] = startdate_obj.strftime("%Y-%m-%d")
+    if contract and contract.get('enddate'):
+        enddate_obj = datetime.strptime(contract['enddate'], "%d/%m/%Y")  
+        contract['enddate'] = enddate_obj.strftime("%Y-%m-%d")
+    return render_template('clientcontract.html', contract=contract)
 
 
 @app.route('/download_client_contract', methods=['POST'])
 def download_client_contract():
     # Get session data
-    service_standards = session.get('serviceStandards', [])
-    contract = session.get('sessionContract', {})
-    arrangements = session.get('serviceArrangements', {})
-    agreement_date = request.form.get('AgreementDate', '')
+    contract = session.get('sessionContract', {})    
     
+    sid = contract.get("sid", "")
+    # Tech Debt: there must be a more elegant way of doing this?
+    # Ensure service standards and arrangements are loaded
+    service_standards = session.get('serviceStandards', [])
+    if service_standards is None or len(service_standards) == 0:
+        service_standards = loadServiceStandards(sid)
+        service_standards = session.get('serviceStandards', [])
+    arrangements = session.get('serviceArrangements', {})
+    if arrangements is None or len(arrangements) == 0:
+        arrangements = loadServiceArrangements(sid)
+        arrangements = session.get('serviceArrangements', {})
+
+    agreement_date = request.form.get('AgreementDate', '')
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
-
-    special_conditions = session.get('specialConditions', '').strip()
-    sid = session.get('sid', '')
-
+        
+    contract_record = db.session.scalar(select(ContractModel).where(ContractModel.sid == sid))
+    special_conditions = contract_record.specialconditions if contract_record else ''
+    
     # Build rows
     data_rows = []
     row = {}
@@ -394,7 +454,7 @@ def prepare_sp_msa():
     contract = gather_data(session_contract)
     if contract:
         session['sessionContract'] = contract
-        session["candidateName"] = contract.get("candidateName", "")
+        #session["candidateName"] = contract.get("candidateName", "")
 
     return render_template('spmsa.html', contract=contract)
 
@@ -409,7 +469,7 @@ def prepare_sp_nda():
     contract = gather_data(session_contract)
     if contract:
         session['sessionContract'] = contract
-        session["candidateName"] = contract.get("candidateName", "")
+        #session["candidateName"] = contract.get("candidateName", "")
 
     return render_template('spnda.html',contract=contract)
 
@@ -847,7 +907,11 @@ def set_contract_candidate():
     contract = gather_data(data)
     if contract:
         session['sessionContract'] = contract
-        session["candidateName"] = contract.get("candidateName", "")    
+        # only override session candidateName once, user must click 'Clear Session' to reset
+        # this is to preserve the original candidate name including the service ID
+        candidate_name = session.get("candidateName", "")
+        if candidate_name is None or candidate_name == "":
+            session["candidateName"] = contract.get("candidateName", "")    
         session.modified = True
     return ("", 204)
 
@@ -932,7 +996,6 @@ def prepare_sp_contract():
     contract = gather_data(session_contract)
     if contract:
         session['sessionContract'] = contract
-        session["candidateName"] = contract.get("candidateName", "")
         session["clientName"] = contract.get("clientName", "")
 
     # format start and end dates so they will populate date picker input correctly
@@ -950,7 +1013,6 @@ def prepare_sp_contract():
 @app.route('/download_sp_contract', methods=['POST'])
 def download_sp_contract():
     # Get session data
-
     contract = session.get('sessionContract', {})    
     
     service_id = contract.get("sid", "")
@@ -964,15 +1026,15 @@ def download_sp_contract():
     if arrangements is None or len(arrangements) == 0:
         arrangements = loadServiceArrangements(service_id)
         arrangements = session.get('serviceArrangements', {})
-
     
     agreement_date = request.form.get('AgreementDate', '')
     
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    special_conditions = session.get('specialConditions', '').strip()
-    
+    contract_record = db.session.scalar(select(ContractModel).where(ContractModel.sid == service_id))
+    special_conditions = contract_record.specialconditions if contract_record else ''
+
     # Build rows
     data_rows = []
     row = {}
