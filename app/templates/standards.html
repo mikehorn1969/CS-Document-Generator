@@ -6,14 +6,7 @@
 
 {% block content %}
 
-<h1>Service Standards</h1>
-
-{% if session['sid'] %}
-    <div>
-        <strong>Service ID:</strong> {{ session['sid'] }}
-    </div>
-    <br>
-{% endif %}
+<h1>{{ serviceid }} Service Standards</h1>
 
 <form action="/servicestandards" method="post">
 
