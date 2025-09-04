@@ -119,23 +119,33 @@ def savecolleaguedata():
 @app.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
     
-    # Get session data
-    session_contract = session.get('sessionContract', {})
-    service_id = session_contract.get("sid", "")
-    if service_id is None or service_id == "":
-        flash("Set a Service Provider with a Service ID before continuing.", "error")
-        return redirect(url_for('index'))
-    
     standards = []
-    
+    session_contract = {}
+    service_id = ""
+    contract = {}
+
+    which = request.args.get('which')  # "CS Standards" or "SP Standards"
+    # If SP Standards button clicked, get session data
+    if which == "SP Standards":        
+        session_contract = session.get('sessionContract', {})
+        service_id = session_contract.get("sid", "")
+        if service_id is None or service_id == "":
+            flash("Set a Service Provider with a Service ID before continuing.", "error")
+            return redirect(url_for('index'))
+    # otherwise we only need the service ID
+    else:
+        service_id = "CS"
+
     if request.method == "GET":
-              
-        contract = {}
-        # Load existing contract data if available
-        contract = gather_data(session_contract)
-        if contract:
-            session['sessionContract'] = contract
-            #session["candidateName"] = contract.get("candidateName", "")
+                    
+        if which == "SP Standards":
+            # Load available contract data
+            contract = gather_data(session_contract)
+            if contract:
+                session['sessionContract'] = contract                
+        else:
+            # No contract data needed for CS Standards
+            contract = {"sid": service_id}
 
     if request.method == 'POST':
 
@@ -176,7 +186,7 @@ def set_servicestandards():
 
     # (re)load for display 
     standards = loadServiceStandards(service_id) 
-    return render_template('standards.html', standards=standards)
+    return render_template('standards.html', serviceid=service_id, standards=standards)
 
 
 @app.route('/delete/<int:stdid>', methods=['POST'])
@@ -1012,16 +1022,24 @@ def prepare_sp_contract():
 
 @app.route('/download_sp_contract', methods=['POST'])
 def download_sp_contract():
+    """
+    Export SP contract data to Excel file for merge into docx
+    There are 20 pairs of standard fields defined, this gives us a number of spares, should the number of CS or SP standards increase
+    """
     # Get session data
     contract = session.get('sessionContract', {})    
     
     service_id = contract.get("sid", "")
+
+    cs_standards = loadServiceStandards("CS") or []
+
     # Tech Debt: there must be a more elegant way of doing this?
     # Ensure service standards and arrangements are loaded
     service_standards = session.get('serviceStandards', [])
     if service_standards is None or len(service_standards) == 0:
         service_standards = loadServiceStandards(service_id)
         service_standards = session.get('serviceStandards', [])
+    
     arrangements = session.get('serviceArrangements', {})
     if arrangements is None or len(arrangements) == 0:
         arrangements = loadServiceArrangements(service_id)
@@ -1072,13 +1090,21 @@ def download_sp_contract():
 
     std_fields = ["ssn", "description"]
     std_export_columns = ["SSN", "SSDescription"]
+    cs_count = 0
     
+    # Flatten CS standards   
+    for i, std in enumerate(cs_standards, start=1):        
+        row[f"SSN{i}"] = std.ssn or ""
+        row[f"SSDescription{i}"] = std.description or ""
+        cs_count += 1
+
     # Flatten service standards
-    for i in range(10):
-                
+    for i in range(cs_count,20):
+
+        i_active = i - cs_count + 1
         # add the standard fields
-        if i < len(service_standards):
-            standard = service_standards[i]        
+        if i_active < len(service_standards):
+            standard = service_standards[i_active]        
         else: 
             standard = {}
 

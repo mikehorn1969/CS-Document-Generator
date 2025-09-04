@@ -836,8 +836,9 @@ def loadServiceStandards(service_id):
     stmt = select(ServiceStandard).where(ServiceStandard.sid == service_id)
     standards = db.session.execute(stmt).scalars().all()
 
-    # Store standards in session for later use
-    session['serviceStandards'] = [s.to_dict() for s in standards]
+    # Store SP standards in session for later use
+    if service_id != "CS":    
+        session['serviceStandards'] = [s.to_dict() for s in standards]
 
     return standards
 
