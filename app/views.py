@@ -66,7 +66,7 @@ def colleaguedata():
     """
     session_contract = session.get('sessionContract') or None
     if not session_contract:
-        flash("Get a Candidate/Service Provider before continuing.", "error")
+        flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('index'))
     else:
         contract = {}
@@ -87,32 +87,33 @@ def savecolleaguedata():
     Validates client and service provider details against Companies House
     """
 
-    if 'btSave' in request.form:
-                
-        contract = session.get('sessionContract', {})
-        
-        if contract:
-            # validate data against CH records
-            # 1. Candidate        
-            ch_candidatename = contract.get("candidateName").split("(")
-            ch_candidatename = ch_candidatename[0]
-            ch_result = validateCH(contract.get("candidateltdregno"), contract.get("candidateltdname"), ch_candidatename)
+    contract = session.get('sessionContract', {})
+    passed = True
+    
+    if contract:
+        # validate data against CH records
+        # 1. Candidate        
+        ch_candidatename = contract.get("candidateName").split("(")
+        ch_candidatename = ch_candidatename[0]
+        ch_result = validateCH(contract.get("candidateltdregno"), contract.get("candidateltdname"), ch_candidatename)
+
+        if not ch_result.get("Valid", False):
+            flash(ch_result.get("Narrative",""), "error")
+            passed = False
+
+        # 2. Client - only where clientname is present
+        client_companyname = contract.get("companyregistrationnumber")
+
+        if client_companyname:
+            ch_result = validateCH(client_companyname, contract.get("companyname"))
 
             if not ch_result.get("Valid", False):
-                # Show pop-up on next render and stop here
                 flash(ch_result.get("Narrative",""), "error")
-                return redirect(url_for("colleaguedata"))
+                passed = False
 
-            # 2. Client - only where clientname is present
-            client_companyname = contract.get("companyregistrationnumber")
+    if passed:
+       flash("Companies House validation passed.", "success")
 
-            if client_companyname:
-                ch_result = validateCH(client_companyname, contract.get("companyname"))
-
-                if not ch_result.get("Valid", False):
-                    # Show pop-up on next render and stop here
-                    flash(ch_result.get("Narrative",""), "error")                    
-                    
     return redirect(url_for('colleaguedata'))
         
 
@@ -130,7 +131,7 @@ def set_servicestandards():
         session_contract = session.get('sessionContract', {})
         service_id = session_contract.get("sid", "")
         if service_id is None or service_id == "":
-            flash("Set a Service Provider with a Service ID before continuing.", "error")
+            flash("Select a Service Provider with a Service ID before continuing.", "error")
             return redirect(url_for('index'))
     # otherwise we only need the service ID
     else:
@@ -199,9 +200,11 @@ def delete_standard(stdid):
 
 @app.route('/servicearrangements', methods=['GET', 'POST'])
 def manage_servicearrangements():
-    session_contract = session.get('sessionContract') or None
-    if not session_contract:
-        flash("Pick a Candidate/Service Provider before continuing.", "error")
+    
+    session_contract = session.get('sessionContract', {})
+    service_id = session_contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
         return redirect(url_for('index'))
 
     # Load contract & current arrangements
@@ -483,16 +486,6 @@ def prepare_sp_nda():
 
     return render_template('spnda.html',contract=contract)
 
-@app.route('/candidate_validate_ch', methods=['POST'])
-def candidate_validate_ch():
-    company_number = request.form.get('CandidateLtdNo', '')
-    company_name = request.form.get('CandidateLtdCo', '')
-    result = validateCH(company_number, company_name)
-    if result is None:
-        # Return an empty JSON object or a message
-        return jsonify({'error': 'No result found'}), 404
-    return jsonify(result)
-
 
 @app.route('/download_sp_msa', methods=['POST'])
 def download_sp_msa():
@@ -500,7 +493,7 @@ def download_sp_msa():
     # Get session data
     contract = session.get('sessionContract', {})
     if not contract:
-        flash("Set a Service Provider before continuing.", "error")
+        flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('index'))
 
     agreement_date = request.form.get('AgreementDate', '')
@@ -882,17 +875,6 @@ def list_to_dict(prefix_list):
     return result
 
 
-@app.route('/client_validate_ch', methods=['POST'])
-def client_validate_ch():
-    company_number = request.form.get('company_number', '')
-    company_name = request.form.get('company_name', '')
-    result = validateCH(company_number, company_name)
-    if result is None:
-        # Return an empty JSON object or a message
-        return jsonify({'error': 'No result found'}), 404
-    return jsonify(result)
-
-
 @app.route('/candidatefetch', methods=['POST'])
 def candidatefetch():
     candidate_name = request.form.get('CandidateName', '')
@@ -932,7 +914,7 @@ def download_sp_nda():
     # Get session data
     contract = session.get('sessionContract', {})
     if not contract:
-        flash("Set a Service Provider before continuing.", "error")
+        flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('index'))
 
     agreement_date = request.form.get('AgreementDate', '')

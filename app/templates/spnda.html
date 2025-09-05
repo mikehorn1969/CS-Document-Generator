@@ -1,55 +1,53 @@
 <!DOCTYPE html>
 
 {% extends "base.html" %}
-{% block title %}CS Document Generator{% endblock %}
+
 {% block head %}
-    {{ super() }}
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {{ super() }}    
 {% endblock %}
 
 {% block content %}
 
 <h1>Service Provider NDA</h1>
 
-<div class="clientgrid">
-    <div> <!-- Left column -->
-        <form action="/download_sp_nda" method="post">
+<form action="/download_sp_nda" method="post">
+    <div class="clientgrid">
+        <div> <!-- Left column -->        
             <div>
                 <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
                 <div>
-                    <input type="date" name="AgreementDate" placeholder="Agreement Date" \
+                    <input type="date" id="AgreementDate" name="AgreementDate" placeholder="Agreement Date" \
                         value="{{ contract['AgreementDate'] if contract and contract.get('AgreementDate') else '' }}" required>
                 </div>
             </div>
             <div>
                 <label for="candidate-name" class="index-label"><strong>Name</strong></label>    
                 <div>
-                    <input type="text" id="candidate-name" name="candidate-name" placeholder="Type a candidate surname..." autocomplete="off" \
-                        class="name-textbox" value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}">                    
+                    <input type="text" id="candidate-name" name="candidate-name" placeholder="Begin typing a surname..." autocomplete="off" \
+                        class="name-textbox" value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}" required >                    
                     <div id="suggestions"></div>
                 </div>        
             </div>
             <div>
-                <!-- Tech Debt: hide this field-->
-                <input type='text' name='candidateId' id="candidateId">
+                <input type='hidden' name='candidateId' id="candidateId">
             </div>
             <div>
                 <input type="submit" class="button" id="submit-btn" value="Submit">
                 <a href="{{ url_for('index') }}" class="button">Back</a>
-            </div>
-        </form>
+            </div>        
+        </div>
+        
+        <div> <!-- Right column -->        
+                <label for="address" class="index-label"><strong>Address</strong></label>    
+                <div>
+                    <input type="text" name="address" id="address" placeholder="SP Address" class="address-textbox" \
+                        value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}" \
+                        required >
+                </div>
+            </div>        
+        </div>
     </div>
-    
-    <div> <!-- Right column -->        
-            <label for="address" class="index-label"><strong>Address</strong></label>    
-            <div>
-                <input type="text" name="address" id="address" placeholder="Address" class="address-textbox" \
-                    value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}" \
-                    required formaction="/download_sp_nda">
-            </div>
-        </div>        
-    </div>
-</div>
+</form>
 
 <script>
     $(document).ready(function() {
@@ -83,6 +81,7 @@
             const payload = { candidateId: $s.data("candidateId") };
 
             $("#suggestions").empty();
+            document.body.classList.add('loading');
             
             $.ajax({
                 url: "/contract/candidate",
@@ -91,6 +90,7 @@
                 data: JSON.stringify(payload)
             }).fail(xhr => console.error("Save failed:", xhr.responseText));
 
+            document.body.classList.remove('loading');
         });
     });
 </script>
