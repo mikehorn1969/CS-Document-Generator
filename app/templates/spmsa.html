@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 
 {% extends "base.html" %}
-{% block title %}CS MSA Generator{% endblock %}
+
 {% block head %}
-    {{ super() }}
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {{ super() }}    
 {% endblock %}
 
 {% block content %}
@@ -24,8 +23,8 @@
             <div>
                 <label for="candidate-name" class="index-label"><strong>Name</strong></label>    
                 <div>
-                    <input type="text" id="candidate-name" name="candidate-name" placeholder="Type a candidate surname..." autocomplete="off" class="name-textbox" \
-                        value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}">                    
+                    <input type="text" id="candidate-name" name="candidate-name" placeholder="Begin typing a surname..." autocomplete="off" \
+                        class="name-textbox" value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}">                    
                     <div id="suggestions"></div>
                 </div>        
             </div>
@@ -41,51 +40,50 @@
     </div>
     
     <div> <!-- Right column -->
-        <form action="/candidate_validate_ch" method="post">
+        
+        <div>
+            <label for="candidate-email" class="index-label"><strong>Email address</strong></label>    
             <div>
-                <label for="candidate-email" class="index-label"><strong>Email address</strong></label>    
-                <div>
-                    <input type="email" name="candidate-email" id="candidate-email" placeholder="Candidate email address" \
-                        value="{{ contract['candidateemail'] if contract and contract.get('candidateemail') else '' }}" required>
-                </div>
+                <input type="email" name="candidate-email" id="candidate-email" placeholder="SP email address" class="name-textbox"\
+                    value="{{ contract['candidateemail'] if contract and contract.get('candidateemail') else '' }}" required>
             </div>
+        </div>
+        <div>
+            <label for="candidate-phone" class="index-label"><strong>Phone</strong></label>    
             <div>
-                <label for="candidate-phone" class="index-label"><strong>Phone</strong></label>    
-                <div>
-                    <input type="tel" name="candidate-phone" id="candidate-phone" placeholder="Candidate phone number" \
-                        value="{{ contract['candidatephone'] if contract and contract.get('candidatephone') else '' }}" required>
-                </div>
-            </div>            
-            <div>
-                <label for="candidate-ltdco" class="index-label"><strong>Ltd Company Name</strong></label>    
-                <div>
-                    <input type="text" name="candidate-ltdco" id="candidate-ltdco" placeholder="Ltd Company Name" \
-                        value="{{ contract['candidateltdname'] if contract and contract.get('candidateltdname') else '' }}" required>
-                    <button type="button" id="btvalidate" class="small-button">Validate</button>
-                </div>
+                <input type="tel" name="candidate-phone" id="candidate-phone" placeholder="SP phone number" \
+                    value="{{ contract['candidatephone'] if contract and contract.get('candidatephone') else '' }}" required>
             </div>
+        </div>            
+        <div>
+            <label for="candidate-ltdco" class="index-label"><strong>Ltd Company Name</strong></label>    
             <div>
-                <label for="candidate-ltdno" class="index-label"><strong>Ltd Company Registration Number</strong></label>    
-                <div>
-                    <input type="text" name="candidate-ltdno" id="candidate-ltdno" placeholder="Registration Number" \
-                        value="{{ contract['candidateltdregno'] if contract and contract.get('candidateltdregno') else '' }}" required>                                        
-                </div>  
+                <input type="text" name="candidate-ltdco" id="candidate-ltdco" placeholder="SP Ltd Company Name" class="name-textbox" \
+                    value="{{ contract['candidateltdname'] if contract and contract.get('candidateltdname') else '' }}" required>                    
             </div>
+        </div>
+        <div>
+            <label for="candidate-ltdno" class="index-label"><strong>Ltd Company Registration Number</strong></label>    
             <div>
-                <label for="candidate-jurisdiction" class="index-label"><strong>Ltd Company Jurisdiction</strong></label>    
-                <div>
-                    <input type="text" name="candidate-jurisdiction" id="candidate-jurisdiction" placeholder="Jurisdiction" \
-                        value="{{ contract['candidatejurisdiction'] if contract and contract.get('candidatejurisdiction') else '' }}" required>                                        
-                </div>  
-            </div>
+                <input type="text" name="candidate-ltdno" id="candidate-ltdno" placeholder="SP Ltd Company Registration Number" \
+                    value="{{ contract['candidateltdregno'] if contract and contract.get('candidateltdregno') else '' }}" required>                                        
+            </div>  
+        </div>
+        <div>
+            <label for="candidate-jurisdiction" class="index-label"><strong>Ltd Company Jurisdiction</strong></label>    
             <div>
-                <label for="reg-address" class="index-label"><strong>Registered Office</strong></label>    
-                <div>
-                    <input type="text" name="reg-address" id="reg-address" placeholder="Registered Office Address" class="address-textbox" \
-                        value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}" required>
-                </div>
+                <input type="text" name="candidate-jurisdiction" id="candidate-jurisdiction" placeholder="SP Ltd Company legal jurisdiction" \
+                    value="{{ contract['candidatejurisdiction'] if contract and contract.get('candidatejurisdiction') else '' }}" required>                                        
+            </div>  
+        </div>
+        <div>
+            <label for="reg-address" class="index-label"><strong>Registered Office</strong></label>    
+            <div>
+                <input type="text" name="reg-address" id="reg-address" placeholder="SP Ltd Company Registered Office Address" class="address-textbox" \
+                    value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}" required>
             </div>
-        </form>
+        </div>
+        
     </div>
 </div>
 

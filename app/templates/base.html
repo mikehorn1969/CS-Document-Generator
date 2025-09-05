@@ -1,14 +1,24 @@
-<html>
+<html lang="en">
     <head>
         {% block head %}
-        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-        <title>{% block title %}{% endblock %}</title>
-        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='media/logos/CS www logo.png') }}">
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+            <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            <title>CS Document Generator</title>
+            <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='media/logos/CS www logo.png') }}">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="flash {{ category|e }}">{{ message }}</li>
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+            {% endwith %}
         {% endblock %}
     </head>
 
     <body>
-        <img src="{{ url_for('static', filename='media/logos/CS Colour Logo (orange wording).png') }}" alt="CS Logo" style="width:224px;height:38px">
+        <img src="{{ url_for('static', filename='media/logos/CS Colour Logo (orange wording).png') }}" alt="CS Logo" class="logo">
         <div id="content">{% block content %}{% endblock %}</div>
         <div id="footer">
             {% block footer %}

@@ -1,6 +1,6 @@
 html * {
     font-family: "Roboto", Sans-serif;
-    
+    font-size: 14px;      
 }
 
 h1 {    
@@ -47,15 +47,13 @@ th, td {
 }
 
 .address-textbox {
-    background-color:#fff ;
-    font-size: 16px;      
-    width: 60%;
+    background-color:#fff ;      
+    width: 70%;
 }
 
 .name-textbox {
     background-color:#fff ;
-    font-size: 16px;      
-    width: 80%;
+    width: 50%;
 }
 
 .index-label {
@@ -66,8 +64,7 @@ th, td {
     border-radius: 4px;
     background-color: #F28E24;
     padding: 15px 30px;
-    border-radius: 4xp;  
-    font-size: 16px;  
+    border-radius: 4xp;       
     color: white;
 }
 
@@ -99,13 +96,37 @@ th, td {
     text-align: justify; 
 }
 
-.c7grid {
+.indexgrid {
     display: grid; 
-    grid-template-columns: 2fr 2fr 2fr; 
+    grid-template-columns: 3fr 2fr 2fr; 
     gap: 32px;
 }
 .clientgrid {
     display: grid; 
-    grid-template-columns: 2fr 4fr; 
+    grid-template-columns: 3fr 3fr; 
     gap: 32px;
+}
+.c7grid {
+    display: grid; 
+    grid-template-columns: 1fr 3fr;
+    gap: 32px;
+}
+
+.flashes { list-style: none; padding: 0; margin: 1rem 0; }
+.flash { padding: .6rem .9rem; margin: .4rem 0; border-radius: .5rem; border: 1px solid transparent; }
+
+.flash.info    { background: #e8f4fd; color: #084c8d; border-color: #b6dcff; }
+.flash.success { background: #e7f7ec; color: #0d5520; border-color: #bee5c0; }
+.flash.warning { background: #fff8e1; color: #7a5a00; border-color: #ffe08a; }
+.flash.error,
+.flash.danger  { background: #fde8e8; color: #7a1c1c; border-color: #ffb3b3; }
+
+.logo {
+    width: 224px;
+    height: 38px;
+}
+
+.loading {
+    cursor: wait;
+    pointer-events: none;
 }

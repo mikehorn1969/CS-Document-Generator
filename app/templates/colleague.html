@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 
 {% extends "base.html" %}
-{% block title %}CS Contract Generator v2{% endblock %}
+
 {% block head %}
     {{ super() }}
 {% endblock %}
@@ -10,7 +10,7 @@
 
 <h1>Colleague Data</h1>
 
-<div style="display: grid; grid-template-columns: 1fr 3fr; gap: 32px;">
+<div class="c7grid">
     
     <!-- Left Column: Inputs and Buttons -->
     <div>           
@@ -75,16 +75,5 @@ C7 Contact ID: {{ contractdata['contactid'] }}
         
     </div>
 </div>
-
-{% with messages = get_flashed_messages(category_filter=['error']) %}
-    {% if messages %}
-        <script>
-            // Simple blocking pop-up
-            window.addEventListener('DOMContentLoaded', () => {
-                alert( {{ messages[0] | tojson }} );
-            });        
-        </script>
-    {% endif %}
-{% endwith %}
 
 {% endblock %}
