@@ -1,20 +1,15 @@
 from __future__ import annotations
 import requests, json
 from app.classes import Config
-from app.helper import loadConfig, formatName
+from app.helper import load_config, formatName
 from typing import Optional, Dict, Any
 
 
 def getCHRecord(companyNo):
 
-    if Config.find_by_name("CH Key") is None:
-        loadConfig()
-        
-    subscription_key = Config.find_by_name("CH Key")
-
-    if not subscription_key:
-        raise ValueError("API key not found in config file.")
-
+    cfg = load_config()
+    subscription_key = cfg["CH_KEY"]
+            
     sCompanyNo = companyNo.strip()
     url = f"https://api.companieshouse.gov.uk/company/{sCompanyNo}"
 
@@ -28,14 +23,10 @@ def getCHRecord(companyNo):
 
 def searchCH(companyName):
 
-    if Config.find_by_name("CH Key") is None:
-        loadConfig()
-        
-    subscription_key = Config.find_by_name("CH Key")
-    
-    if not subscription_key:
-        raise ValueError("API key not found in config file.")
+    cfg = load_config()
+    subscription_key = cfg["CH_KEY"]
 
+    companyName = companyName.strip()
     url = f"https://api.company-information.service.gov.uk/search/companies?q={companyName}"
 
     response = requests.get(url, auth=(subscription_key,""))
@@ -51,7 +42,9 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
     Validate a Companies House entry and (optionally) confirm a director.
     Returns a dict with keys: Valid, Narrative, CompanyNumber, Is Director, Director, Jurisdiction, Status.
     """
-    nameapi_key = Config.find_by_name("NAMEAPI Key")
+    cfg = load_config()
+    ch_key = cfg["CH_KEY"]
+    nameapi_key = cfg["NAMEAPI_KEY"]
 
     # --- helpers -------------------------------------------------------------
     def make_result(*, valid: bool, narrative: str = "", is_director: bool = False,
@@ -79,10 +72,9 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
         return f"{first_forename} {surname}"
 
     # --- config / inputs -----------------------------------------------------
-    if Config.find_by_name("CH Key") is None:
-        loadConfig()
+    cfg = load_config()
 
-    subscription_key = Config.find_by_name("CH Key")
+    subscription_key = cfg["CH_KEY"]
     if not subscription_key:
         raise ValueError("API key not found in config file.")
 
