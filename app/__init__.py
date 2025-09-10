@@ -2,12 +2,14 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os, secrets
+import dotenv
 
 # Initialise the app
 app = Flask(__name__)
 
 # Load the config
 # Select config class based on environment variable
+dotenv.load_dotenv()
 config_mode = os.environ.get('FLASK_CONFIG', 'DevelopmentConfig')
 app.config.from_object(f'config.{config_mode}')
 

@@ -1,10 +1,11 @@
+import os
 from app import app, db
 from flask import Flask, abort, render_template, request, redirect, url_for, session, send_file, flash, jsonify
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany, gather_data, getC7Candidate, loadServiceStandards, loadServiceArrangements
+from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany, gather_data, getC7Candidate, loadServiceStandards, loadServiceArrangements, getC7Candidates
 from app.chquery import validateCH, searchCH
-from app.classes import Config, Company
-from app.helper import loadConfig, formatName, uploadToSharePoint
+from app.classes import Company, Config
+from app.helper import formatName, uploadToSharePoint, load_azure_app_identity
 from datetime import datetime
 from sqlalchemy import select
 import pandas as pd
@@ -15,8 +16,9 @@ from openpyxl.utils import get_column_letter
 import requests
 import time
 from typing import List
-#from office365.runtime.auth.user_credential import UserCredential
-from office365.sharepoint.client_context import ClientContext
+# from office365.runtime.auth.authentication_context import AuthenticationContext
+# from office365.sharepoint.client_context import ClientContext
+from msal import ConfidentialClientApplication
 
 @app.route('/', methods=["GET", "POST"])
 def index():
@@ -27,14 +29,14 @@ def index():
 def search_candidates():
     q = request.args.get("q", "").strip()
     results = fetch_candidates(q)
-    #session["candidateName"] = results[0].get("candidateName") if results else None
+    session["candidateName"] = results[0].get("candidateName") if results else None
     return jsonify(results)
     
 
 @app.route('/searchclients')
 def search_clients():
     q = request.args.get("q", "").strip()
-    results = fetch_clients(q) #wibble
+    results = fetch_clients(q)
     return jsonify(results)
 
 
@@ -68,16 +70,9 @@ def colleaguedata():
     if not session_contract:
         flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('index'))
-    else:
-        contract = {}
-        # Load available contract data
-        contract = gather_data(session_contract)
-        if contract:
-            session['sessionContract'] = contract
-            #session["candidateName"] = contract.get("candidateName", "")
-
+    
     return render_template(
-        'colleague.html', contractdata=contract)
+        'colleague.html', contractdata=session_contract)
 
 
 # Tech Debt: consider refactoring this function to reflect new logic
@@ -505,11 +500,11 @@ def download_sp_msa():
     data_rows = []
     row = {}
     row["AgreementDate"] = f_agreement_date
-    fields = ["candidateName", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress"]
-    
-    export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress"]
-    
-    # Populate row with contract fields    
+    fields = ["candidateName", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress", "candidateemail"]
+
+    export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress", "CandidateEmail"]
+
+    # Populate row with contract fields
     # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
         if ( raw_field == "candidatejurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
@@ -551,12 +546,24 @@ def download_sp_msa():
     wb.save(final_output)
     final_output.seek(0)
 
-    return send_file(
-        final_output,
-        as_attachment=True,
-        download_name=f"{contract.get('candidateltdname')} Service Provider MSA.xlsx",
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+    # Upload to SharePoint
+    target_url = "Mike/Uploads"
+    download_name=f"{contract.get('candidateltdname')} Service Provider MSA.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Service Provider MSA to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Service Provider MSA uploaded to SharePoint folder {target_url}.", "success")
+        return redirect(url_for('index'))
 
 
 @app.route('/clientmsa', methods=['GET', 'POST'])
@@ -645,38 +652,26 @@ def download_client_msa():
     wb.save(final_output)
     final_output.seek(0)
     
-    """ 
-    # Section commented out until azure and SharePoint credentials sorted
-    # Tech Debt: load credentials from config
+    # Upload to SharePoint
 
-    site_url = "https://jjag.sharepoint.com/sites/InternalTeam"
-
-    cert_settings = {
-        'client_id': '51d03106-4726-442c-86db-70b32fa7547f', 
-        'thumbprint': "6B36FBFC86FB1C019EB6496494B9195E6D179DDB",
-        'cert_path': 'mycert.pem'
-    }
-    #ctx = ClientContext(site_url).with_credentials(UserCredential(username, password))
-    ctx = ClientContext(site_url).with_client_certificate('changespecialists.co.uk', **cert_settings)
-
-    target_url = f"{site_url}/Shared Documents/Mike/Uploads"
+    target_url = "Mike/Uploads"
     download_name=f"{contract.get('companyname')} Client MSA.xlsx"
 
-    # returns target_file.serverRelativeUrl
     file_bytes = final_output.getvalue()
-    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url, ctx)
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
 
-    if uploaded_file:    
-        return "Success", 200
-    else: """
-
-    return send_file(
-        final_output,
-        as_attachment=True,
-        download_name=f"{contract.get('companyname')} Client MSA.xlsx",
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Client MSA to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Client MSA uploaded to SharePoint folder {target_url}.", "success")
+        return redirect(url_for('index'))
+    
 
 @app.route('/chfetch', methods=['POST'])
 def get_company_number():
@@ -727,23 +722,10 @@ def fetch_candidates(query: str) -> List[dict]:
     if cached is not None:
         return cached
 
-    # load config
-    if Config.find_by_name("C7 Key") is None:
-        loadConfig()
+    payload = getC7Candidates(qkey)
+    if payload is None or not isinstance(payload, list) or len(payload) == 0:
+        return []   
 
-    user_id = Config.find_by_name("C7 Userid")
-    hdr = Config.find_by_name("C7 HDR")
-
-    # Build request
-    payload = []
-    try:
-        candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={query}"            
-        candidate_search_response = requests.get(candidate_url, headers=hdr)                   
-        if candidate_search_response.status_code == 200:
-            payload = candidate_search_response.json()
-    except:        
-        return []
-    
     # Normalise to list[str] — tweak this for your API’s schema
     results = []
     
@@ -850,6 +832,7 @@ def fetch_contacts(qclient: str, qcontact: str) -> List[dict]:
     _cache_set(qkey, results)
     return results
 
+
 def parse_date(value: str):
     try:
         # Parse the date string
@@ -893,7 +876,7 @@ def set_contract_candidate():
     if not cand_id:
         return jsonify(error="candidateId required"), 400
 
-    contract = session.get("sessionContract", {})
+    # contract = session.get("sessionContract", {})
         
     # Load existing contract data if available
     contract = gather_data(data)
