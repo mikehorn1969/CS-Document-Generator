@@ -84,11 +84,87 @@
     </div>
 
 <script>
+    (() => {
+        const TRACK = [/\/searchcandidates\b/i, /\/contract\/candidate\b/i];
+        const LOADING_CLASS = 'loading';
+        let pending = 0;
+
+        // Safely get a URL string and pathname for matching
+        function getUrlInfo(input) {
+            const u = typeof input === 'string' ? input : (input && input.url) || '';
+            const url = new URL(u, window.location.href);
+            return { full: url.href, path: url.pathname };
+        }
+
+        function matchesTracked(input) {
+            const { path, full } = getUrlInfo(input);
+            return TRACK.some(re => re.test(path) || re.test(full));
+        }
+
+        function inc() {
+            if (++pending === 1) document.body.classList.add(LOADING_CLASS);
+        }
+        function dec() {
+            if (pending > 0 && --pending === 0) document.body.classList.remove(LOADING_CLASS);
+        }
+
+        // Ensure body exists before we start toggling
+        if (!document.body) {
+            document.addEventListener('DOMContentLoaded', () => {}); // just to ensure body is ready
+        }
+
+        // --- fetch ---
+        if (window.fetch) {
+            const _fetch = window.fetch.bind(window);
+            window.fetch = function(input, init) {
+            const track = matchesTracked(input);
+            if (track) inc();
+            return _fetch(input, init)
+                .catch(err => { if (track) dec(); throw err; })
+                .then(res => { if (track) dec(); return res; });
+            };
+        }
+
+        // --- XMLHttpRequest (covers jQuery, plain XHR) ---
+        (function() {
+            const _open = XMLHttpRequest.prototype.open;
+            const _send = XMLHttpRequest.prototype.send;
+
+            XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+            this.__track_loading = matchesTracked(url);
+            return _open.call(this, method, url, ...rest);
+            };
+
+            XMLHttpRequest.prototype.send = function(...args) {
+            if (this.__track_loading) {
+                inc();
+                const done = () => { dec(); cleanup(); };
+                const cleanup = () => {
+                this.removeEventListener('load', done);
+                this.removeEventListener('error', done);
+                this.removeEventListener('abort', done);
+                };
+                this.addEventListener('load', done);
+                this.addEventListener('error', done);
+                this.addEventListener('abort', done);
+            }
+            return _send.apply(this, args);
+            };
+        })();
+
+        // Show wait cursor on page navigations (forms/links)  
+        window.addEventListener('beforeunload', () => {
+            document.body.classList.add(LOADING_CLASS);
+        });
+    })();
+
     $(document).ready(function() {
         $("#sid").on("input", function() {
             let query = $(this).val();
             if (query.length > 3) {
+
                 $.getJSON("/searchcandidates", { q: query }, function(data) {
+
                     const $sugs = $("#suggestions").empty();
                     data.forEach(function (item) {
                         const $row = $('<div class="candidate-suggestion"></div>')
@@ -104,15 +180,16 @@
                             candidateName: item.candidateName || ""
                         });
                         $sugs.append($row);
-                    });                   
-                    
+                    }); 
                 });
+                
             } else {
                 $("#suggestions").empty();
             }
         });
 
         $("#suggestions").on("click", ".candidate-suggestion", function () {
+            
             const $s = $(this);
             $("#sid").val($s.text());
             $("#candidateId").val($s.data("candidateId"));     

@@ -157,7 +157,7 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
    
     site_name = 'InternalTeam'
     site_domain = 'jjag.sharepoint.com'
-    #library = 'Documents'
+    library = 'Mike'
     folder_path = target_url 
     file_name = filename
 
@@ -172,8 +172,9 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
     site_id = site_response.json()['id']
 
     # Upload file
-    #upload_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{library}/{folder_path}/{file_name}:/content'
-    upload_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{folder_path}/{file_name}:/content'
+    upload_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{library}/{folder_path}/{file_name}:/content'
+    #upload_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{folder_path}/{file_name}:/content'
+    print(f"Uploading to URL: {upload_url}")
 
     upload_response = requests.put(upload_url, headers={
         'Authorization': f'Bearer {access_token}',

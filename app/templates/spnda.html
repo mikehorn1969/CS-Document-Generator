@@ -38,13 +38,21 @@
         </div>
         
         <div> <!-- Right column -->        
+            <div>
+                <label for="candidate-email" class="index-label"><strong>Email address</strong></label>    
+                <div>
+                    <input type="email" name="candidate-email" id="candidate-email" placeholder="SP email address" class="name-textbox"\
+                        value="{{ contract['candidateemail'] if contract and contract.get('candidateemail') else '' }}" required>
+                </div>
+            </div>    
+            <div>
                 <label for="address" class="index-label"><strong>Address</strong></label>    
                 <div>
                     <input type="text" name="address" id="address" placeholder="SP Address" class="address-textbox" \
                         value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}" \
                         required >
                 </div>
-            </div>        
+            </div>                
         </div>
     </div>
 </form>
@@ -61,7 +69,8 @@
                         .text(item.candidateName)
                         .data({                            
                             candidateAddress: item.candidateAddress || "",
-                            candidateId: item.candidateId || ""
+                            candidateId: item.candidateId || "",
+                            candidateEmail: item.candidateEmail || ""
                         });
                         $sugs.append($row);
                     });
@@ -77,6 +86,7 @@
             $("#candidate-name").val($s.text());            
             $("#address").val($s.data("candidateAddress"));
             $("#candidateId").val($s.data("candidateId"));
+            $("#candidate-email").val($s.data("candidateEmail"));
             
             const payload = { candidateId: $s.data("candidateId") };
 
