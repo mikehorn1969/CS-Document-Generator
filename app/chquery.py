@@ -3,17 +3,22 @@ import requests, json
 from app.classes import Config
 from app.helper import load_config, formatName
 from typing import Optional, Dict, Any
+import os
 
 
 def getCHRecord(companyNo):
-
-    cfg = load_config()
-    subscription_key = cfg["CH_KEY"]
-            
+    
+    subscription_key = os.environ.get("CH_KEY", None)
+    if not subscription_key:
+        cfg = load_config()
+        subscription_key = cfg["CH_KEY"]
+    
     sCompanyNo = companyNo.strip()
     url = f"https://api.companieshouse.gov.uk/company/{sCompanyNo}"
 
-    response = requests.get(url, auth=(subscription_key,""))
+    if isinstance(subscription_key, dict):
+        subscription_key = subscription_key.get("CH_KEY", "")
+    response = requests.get(url, auth=(subscription_key, ""))
 
     if response.status_code == 200:
         return response.json()
@@ -23,13 +28,17 @@ def getCHRecord(companyNo):
 
 def searchCH(companyName):
 
-    cfg = load_config()
-    subscription_key = cfg["CH_KEY"]
+    subscription_key = os.environ.get("CH_KEY", None)
+    if not subscription_key:
+        cfg = load_config()
+        subscription_key = cfg["CH_KEY"]
 
     companyName = companyName.strip()
     url = f"https://api.company-information.service.gov.uk/search/companies?q={companyName}"
 
-    response = requests.get(url, auth=(subscription_key,""))
+    if isinstance(subscription_key, dict):
+        subscription_key = subscription_key.get("CH_KEY", "")
+    response = requests.get(url, auth=(subscription_key, ""))
 
     if response.status_code == 200:
         return response.json()
@@ -42,9 +51,12 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
     Validate a Companies House entry and (optionally) confirm a director.
     Returns a dict with keys: Valid, Narrative, CompanyNumber, Is Director, Director, Jurisdiction, Status.
     """
-    cfg = load_config()
-    ch_key = cfg["CH_KEY"]
-    nameapi_key = cfg["NAMEAPI_KEY"]
+    # --- config --------------------------------------------------------------
+    subscription_key = os.environ.get("CH_KEY", None)
+    if not subscription_key:
+        cfg = load_config()
+        subscription_key = cfg["CH_KEY"]
+    nameapi_key = os.environ.get("NAMEAPI_KEY", None)
 
     # --- helpers -------------------------------------------------------------
     def make_result(*, valid: bool, narrative: str = "", is_director: bool = False,
@@ -71,20 +83,13 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
         first_forename = forenames.split()[0]
         return f"{first_forename} {surname}"
 
-    # --- config / inputs -----------------------------------------------------
-    cfg = load_config()
 
-    subscription_key = cfg["CH_KEY"]
-    if not subscription_key:
-        raise ValueError("API key not found in config file.")
-
+    # --- main code -----------------------------------------------------------
     reg_number = ch_number.strip() if ch_number else ""
     ltd_name_input = ch_name.strip() if ch_name else ""
     ltd_name_upper = ltd_name_input.upper()
     reg_address = ""
     director_input = director.strip().upper() if director else None
-    
-
 
     # --- 1) find the company by name + number -------------------------------
     ch_result = searchCH(ltd_name_input)
@@ -209,22 +214,14 @@ def getCHbasics(ltd_name, reg_number):
     # Use company number to get jurisdiction from CH record
     company_record = getCHRecord(reg_number)
 
-    # Tech Debt: break using flag once key is found
+    # Extract jurisdiction
+    found = False
     for key, value in company_record.items():
         if key == "jurisdiction":
             return_jurisdiction = value
-            break
+            found = True            
+        if found:
+            break   
 
     return return_address, return_jurisdiction
 
-
-if __name__ == '__main__':
-
-    company_number = "08320269"   
-    company_name = "CHANGE SPECIALISTS LIMITED"
-
-    result = validateCH(company_number, company_name)
-    
-    for key, value in result.items():        
-        print(key, ":", value)
-        

@@ -444,12 +444,24 @@ def download_client_contract():
     wb.save(final_output)
     final_output.seek(0)
     
-    return send_file(
-        final_output,
-        as_attachment=True,
-        download_name=f"{sid} Client contract data.xlsx",
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+    # Upload to SharePoint
+    target_url = "Uploads"
+    download_name=f"{sid} Client Statement of Service CSOS.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Client Statement of Service to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Client Statement of Service uploaded to SharePoint.", "success")
+        return redirect(url_for('index'))
 
 
 @app.route('/spmsa', methods=['GET', 'POST'])
@@ -457,14 +469,11 @@ def prepare_sp_msa():
     
     session_contract = session.get('sessionContract') or None
 
-    contract = {}
-    # Load existing contract data if available
-    contract = gather_data(session_contract)
-    if contract:
-        session['sessionContract'] = contract
-        #session["candidateName"] = contract.get("candidateName", "")
-
-    return render_template('spmsa.html', contract=contract)
+    if not session_contract:
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('index'))
+    
+    return render_template('spmsa.html', contract=session_contract)
 
 
 @app.route('/spnda', methods=['GET', 'POST'])
@@ -472,14 +481,11 @@ def prepare_sp_nda():
 
     session_contract = session.get('sessionContract') or None
 
-    contract = {}
-    # Load existing contract data if available
-    contract = gather_data(session_contract)
-    if contract:
-        session['sessionContract'] = contract
-        #session["candidateName"] = contract.get("candidateName", "")
+    if not session_contract:
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('index'))
 
-    return render_template('spnda.html',contract=contract)
+    return render_template('spnda.html', contract=session_contract)
 
 
 @app.route('/download_sp_msa', methods=['POST'])
@@ -547,8 +553,8 @@ def download_sp_msa():
     final_output.seek(0)
 
     # Upload to SharePoint
-    target_url = "Mike/Uploads"
-    download_name=f"{contract.get('candidateltdname')} Service Provider MSA.xlsx"
+    target_url = "Uploads"
+    download_name=f"{contract.get('candidateltdname')} Service Provider MSA SMSA.xlsx"
 
     file_bytes = final_output.getvalue()
     uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
@@ -562,7 +568,7 @@ def download_sp_msa():
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     else:
-        flash(f"Service Provider MSA uploaded to SharePoint folder {target_url}.", "success")
+        flash(f"Service Provider MSA uploaded to SharePoint.", "success")
         return redirect(url_for('index'))
 
 
@@ -654,8 +660,8 @@ def download_client_msa():
     
     # Upload to SharePoint
 
-    target_url = "Mike/Uploads"
-    download_name=f"{contract.get('companyname')} Client MSA.xlsx"
+    target_url = "Uploads"
+    download_name=f"{contract.get('companyname')} Client MSA CMSA.xlsx"
 
     file_bytes = final_output.getvalue()
     uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
@@ -909,9 +915,9 @@ def download_sp_nda():
     data_rows = []
     row = {}
     row["AgreementDate"] = f_agreement_date
-    fields = ["candidateName", "candidateaddress"]
+    fields = ["candidateName", "candidateaddress", "candidateemail"]
     
-    export_columns = ["CandidateName", "CandidateAddress"]
+    export_columns = ["CandidateName", "CandidateAddress", "CandidateEmail"]
     
     # Populate row with contract fields    
     # making any neccessary substitutions
@@ -953,12 +959,24 @@ def download_sp_nda():
     wb.save(final_output)
     final_output.seek(0)
 
-    return send_file(
-        final_output,
-        as_attachment=True,
-        download_name=f"{contract.get('candidateName')} Service Provider NDA.xlsx",
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+    # Upload to SharePoint
+    target_url = "Uploads"
+    download_name=f"{contract.get('candidateltdname')} Service Provider NDA SNDA.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Service Provider NDA to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Service Provider NDA uploaded to SharePoint.", "success")
+        return redirect(url_for('index'))
 
 
 @app.route('/spcontract', methods=['GET', 'POST'])
@@ -1124,9 +1142,21 @@ def download_sp_contract():
     wb.save(final_output)
     final_output.seek(0)
     
-    return send_file(
-        final_output,
-        as_attachment=True,
-        download_name=f"{service_id} Service Provider contract data.xlsx",
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+        # Upload to SharePoint
+    target_url = "Uploads"
+    download_name=f"{service_id} Service Provider Statement of Service SSOS.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Service Provider Statement of Service to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Service Provider Statement of Service uploaded to SharePoint.", "success")
+        return redirect(url_for('index'))
