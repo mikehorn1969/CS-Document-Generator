@@ -65,8 +65,8 @@
                 value="£{{ contract['charges'] if contract and contract.get('charges') else '' }}" required>    
         </div>
     </div>
-    <input type="submit" class="small-button" id="submit-btn" value="Submit">
-    <a href="{{ url_for('index') }}" class="small-button">Back</a>
+    <input type="submit" class="button" id="submit-btn" value="Submit">
+    <a href="{{ url_for('views.index') }}" class="button">Back</a>
 </form>
 
 <script>
