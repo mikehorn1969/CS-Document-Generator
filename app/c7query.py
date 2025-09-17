@@ -1,7 +1,7 @@
 # c7query.py - Colleague 7 API queries
 
 import requests, string
-from app import app, db
+from app import db
 from app.classes import Company, Contact, Config, Requirement, Candidate, C7User
 from app.helper import load_config, formatName
 import re

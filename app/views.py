@@ -1,11 +1,15 @@
 import os
-from app import app, db
-from flask import Flask, abort, render_template, request, redirect, url_for, session, send_file, flash, jsonify
+
+from app import db
+
+from flask import render_template, request, redirect, url_for, session, send_file, flash, jsonify
+from flask import Blueprint
+
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
 from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany, gather_data, getC7Candidate, loadServiceStandards, loadServiceArrangements, getC7Candidates
 from app.chquery import validateCH, searchCH
 from app.classes import Company, Config
-from app.helper import formatName, uploadToSharePoint, load_azure_app_identity
+from app.helper import formatName, uploadToSharePoint
 from datetime import datetime
 from sqlalchemy import select
 import pandas as pd
@@ -13,19 +17,18 @@ from io import BytesIO
 from openpyxl import load_workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
-import requests
 import time
 from typing import List
-# from office365.runtime.auth.authentication_context import AuthenticationContext
-# from office365.sharepoint.client_context import ClientContext
-from msal import ConfidentialClientApplication
 
-@app.route('/', methods=["GET", "POST"])
+views_bp = Blueprint('views', __name__)
+
+
+@views_bp.route('/', methods=["GET", "POST"])
 def index():
     return render_template('index.html', sid=session.get('sid', ''))
 
 
-@app.route('/searchcandidates')
+@views_bp.route('/searchcandidates')
 def search_candidates():
     q = request.args.get("q", "").strip()
     results = fetch_candidates(q)
@@ -33,14 +36,14 @@ def search_candidates():
     return jsonify(results)
     
 
-@app.route('/searchclients')
+@views_bp.route('/searchclients')
 def search_clients():
     q = request.args.get("q", "").strip()
     results = fetch_clients(q)
     return jsonify(results)
 
 
-@app.route('/searchcontacts')
+@views_bp.route('/searchcontacts')
 def search_contacts():
     qclient = request.args.get('client','').strip()
     qcontact = request.args.get("q", "").strip()
@@ -48,13 +51,13 @@ def search_contacts():
     return jsonify(results)
 
           
-@app.route('/clearsession', methods=["POST"])
+@views_bp.route('/clearsession', methods=["POST"])
 def clear_session():
     session.clear()
-    return redirect(url_for('index'))
+    return redirect(url_for('views.index'))
 
 
-@app.route('/colleaguedata', methods=["GET"])
+@views_bp.route('/colleaguedata', methods=["GET"])
 def colleaguedata():
     """
     Handles GET requests to load and prepare contract data for the colleague view.
@@ -69,14 +72,14 @@ def colleaguedata():
     session_contract = session.get('sessionContract') or None
     if not session_contract:
         flash("Select a Service Provider before continuing.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
     
     return render_template(
         'colleague.html', contractdata=session_contract)
 
 
 # Tech Debt: consider refactoring this function to reflect new logic
-@app.route('/savecolleaguedata', methods=["POST"])
+@views_bp.route('/savecolleaguedata', methods=["POST"])
 def savecolleaguedata():
     """
     Validates client and service provider details against Companies House
@@ -109,10 +112,10 @@ def savecolleaguedata():
     if passed:
        flash("Companies House validation passed.", "success")
 
-    return redirect(url_for('colleaguedata'))
+    return redirect(url_for('views.colleaguedata'))
         
 
-@app.route('/servicestandards', methods=['GET', 'POST'])
+@views_bp.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
     
     standards = []
@@ -127,7 +130,7 @@ def set_servicestandards():
         service_id = session_contract.get("sid", "")
         if service_id is None or service_id == "":
             flash("Select a Service Provider with a Service ID before continuing.", "error")
-            return redirect(url_for('index'))
+            return redirect(url_for('views.index'))
     # otherwise we only need the service ID
     else:
         service_id = "CS"
@@ -185,28 +188,28 @@ def set_servicestandards():
     return render_template('standards.html', serviceid=service_id, standards=standards)
 
 
-@app.route('/delete/<int:stdid>', methods=['POST'])
+@views_bp.route('/delete/<int:stdid>', methods=['POST'])
 def delete_standard(stdid):
     standard = ServiceStandard.query.get_or_404(stdid)
     db.session.delete(standard)
     db.session.commit()
-    return redirect(url_for('set_servicestandards'))
+    return redirect(url_for('views.set_servicestandards'))
 
 
-@app.route('/servicearrangements', methods=['GET', 'POST'])
+@views_bp.route('/servicearrangements', methods=['GET', 'POST'])
 def manage_servicearrangements():
     
     session_contract = session.get('sessionContract', {})
     service_id = session_contract.get("sid", "")
     if service_id is None or service_id == "":
         flash("Select a Service Provider with a Service ID before continuing.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
 
     # Load contract & current arrangements
     contract = gather_data(session_contract)
     if not contract:
         flash("Failed to load contract data.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
 
     session['sessionContract'] = contract
     #session["candidateName"] = contract.get("candidateName", "")
@@ -293,7 +296,7 @@ def manage_servicearrangements():
     return render_template('arrangements.html', arrangements=arrangements, contract=contract)
 
 
-@app.route('/clientcontract', methods=['GET', 'POST'])
+@views_bp.route('/clientcontract', methods=['GET', 'POST'])
 def prepare_client_contract():
 
     session_contract = session.get('sessionContract') or None
@@ -316,7 +319,7 @@ def prepare_client_contract():
     return render_template('clientcontract.html', contract=contract)
 
 
-@app.route('/download_client_contract', methods=['POST'])
+@views_bp.route('/download_client_contract', methods=['POST'])
 def download_client_contract():
     # Get session data
     contract = session.get('sessionContract', {})    
@@ -461,41 +464,41 @@ def download_client_contract():
         )
     else:
         flash(f"Client Statement of Service uploaded to SharePoint.", "success")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
 
 
-@app.route('/spmsa', methods=['GET', 'POST'])
+@views_bp.route('/spmsa', methods=['GET', 'POST'])
 def prepare_sp_msa():
     
     session_contract = session.get('sessionContract') or None
 
     if not session_contract:
         flash("Select a Service Provider before continuing.", "error")
-        return redirect(url_for('index'))
-    
+        return redirect(url_for('views.index'))
+
     return render_template('spmsa.html', contract=session_contract)
 
 
-@app.route('/spnda', methods=['GET', 'POST'])
+@views_bp.route('/spnda', methods=['GET', 'POST'])
 def prepare_sp_nda():
 
     session_contract = session.get('sessionContract') or None
 
     if not session_contract:
         flash("Select a Service Provider before continuing.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
 
     return render_template('spnda.html', contract=session_contract)
 
 
-@app.route('/download_sp_msa', methods=['POST'])
+@views_bp.route('/download_sp_msa', methods=['POST'])
 def download_sp_msa():
 
     # Get session data
     contract = session.get('sessionContract', {})
     if not contract:
         flash("Select a Service Provider before continuing.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
 
     agreement_date = request.form.get('AgreementDate', '')
     
@@ -569,16 +572,16 @@ def download_sp_msa():
         )
     else:
         flash(f"Service Provider MSA uploaded to SharePoint.", "success")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
 
 
-@app.route('/clientmsa', methods=['GET', 'POST'])
+@views_bp.route('/clientmsa', methods=['GET', 'POST'])
 def prepare_client_msa():
     contract = session.get('sessionContract', {})
     return render_template('clientmsa.html', contract=contract)
 
 
-@app.route('/download_client_msa', methods=['POST'])
+@views_bp.route('/download_client_msa', methods=['POST'])
 def download_client_msa():
         
     # Get session data, obtain it from the form if necessary - most likely for an MSA
@@ -676,10 +679,10 @@ def download_client_msa():
         )
     else:
         flash(f"Client MSA uploaded to SharePoint folder {target_url}.", "success")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
     
 
-@app.route('/chfetch', methods=['POST'])
+@views_bp.route('/chfetch', methods=['POST'])
 def get_company_number():
     ltd_name = request.form.get('clientname','')
     data = {}
@@ -864,7 +867,7 @@ def list_to_dict(prefix_list):
     return result
 
 
-@app.route('/candidatefetch', methods=['POST'])
+@views_bp.route('/candidatefetch', methods=['POST'])
 def candidatefetch():
     candidate_name = request.form.get('CandidateName', '')
     result = searchC7Candidate(candidate_name) if candidate_name else None
@@ -875,7 +878,7 @@ def candidatefetch():
     return jsonify(result)
 
 
-@app.post("/contract/candidate")
+@views_bp.post("/contract/candidate")
 def set_contract_candidate():
     data = request.get_json(force=True) or {}
     cand_id = data.get("candidateId")
@@ -897,14 +900,14 @@ def set_contract_candidate():
     return ("", 204)
 
 
-@app.route('/download_sp_nda', methods=['POST'])
+@views_bp.route('/download_sp_nda', methods=['POST'])
 def download_sp_nda():
 
     # Get session data
     contract = session.get('sessionContract', {})
     if not contract:
         flash("Select a Service Provider before continuing.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
 
     agreement_date = request.form.get('AgreementDate', '')
     
@@ -976,10 +979,10 @@ def download_sp_nda():
         )
     else:
         flash(f"Service Provider NDA uploaded to SharePoint.", "success")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))
 
 
-@app.route('/spcontract', methods=['GET', 'POST'])
+@views_bp.route('/spcontract', methods=['GET', 'POST'])
 def prepare_sp_contract():
 
     session_contract = session.get('sessionContract') or None
@@ -1003,7 +1006,7 @@ def prepare_sp_contract():
     return render_template('spcontract.html', contract=contract)
 
 
-@app.route('/download_sp_contract', methods=['POST'])
+@views_bp.route('/download_sp_contract', methods=['POST'])
 def download_sp_contract():
     """
     Export SP contract data to Excel file for merge into docx
@@ -1159,4 +1162,4 @@ def download_sp_contract():
         )
     else:
         flash(f"Service Provider Statement of Service uploaded to SharePoint.", "success")
-        return redirect(url_for('index'))
+        return redirect(url_for('views.index'))

@@ -4,30 +4,31 @@ from flask_migrate import Migrate
 import os, secrets
 import dotenv
 
+# Initialise extensions globally
+db = SQLAlchemy()
+migrate = Migrate()
+
 # Initialise the app
-app = Flask(__name__)
+def create_app():
+    app = Flask(__name__)
 
-# Load the config
-# Select config class based on environment variable
-dotenv.load_dotenv()
-config_mode = os.environ.get('FLASK_CONFIG', 'DevelopmentConfig')
-app.config.from_object(f'config.{config_mode}')
+    # Load the config
+    # Select config class based on environment variable
+    dotenv.load_dotenv()
+    config_mode = os.environ.get('FLASK_CONFIG', 'DevelopmentConfig')
+    app.config.from_object(f'config.{config_mode}')
 
-app.secret_key = secrets.token_hex(32)
-basedir = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(basedir, '..', 'service_standards.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+    app.secret_key = secrets.token_hex(32)
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    db_path = os.path.join(basedir, '..', 'service_standards.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    migrate.init_app(app, db)
 
-# Load the views
+    from app.views import views_bp
+    app.register_blueprint(views_bp)
 
-from app import views, models
+    return app
+    
 
-print("DEBUG =", app.config['DEBUG'])
-print("ENV =", app.config['ENV'])
-print("Using config class:", config_mode)
-
-
-  
