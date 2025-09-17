@@ -3,6 +3,7 @@
         {% block head %}
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
             <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            <img src="{{ url_for('static', filename='media/logos/CS Colour Logo (orange wording).png') }}" alt="CS Logo" class="logo">
             <title>CS Document Generator</title>
             <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='media/logos/CS www logo.png') }}">
             {% with messages = get_flashed_messages(with_categories=true) %}
@@ -18,7 +19,7 @@
     </head>
 
     <body>
-        <img src="{{ url_for('static', filename='media/logos/CS Colour Logo (orange wording).png') }}" alt="CS Logo" class="logo">
+        
         <div id="content">{% block content %}{% endblock %}</div>
         <div id="footer">
             {% block footer %}
