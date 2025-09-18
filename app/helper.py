@@ -144,9 +144,9 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
     token = credential.get_token("https://graph.microsoft.com/.default")
     access_token = token.token
 
-    site_name = 'InternalTeam'
-    site_domain = 'jjag.sharepoint.com'
-    library = 'Mike'
+    site_name = os.getenv('SP_SITE_NAME', 'InternalTeam')
+    site_domain = os.getenv('SP_SITE_DOMAIN', 'jjag.sharepoint.com')
+    library = os.getenv('SP_LIBRARY', 'Mike')     
     folder_path = target_url
     file_name = filename
 
@@ -170,57 +170,6 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
     }, data=file_bytes)
 
     return upload_response.status_code
-
-
-""" def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
-    
-    ""
-    Upload a file to SharePoint using Microsoft Graph API.
-    ""
-
-    azure_cfg = load_azure_app_identity()
-    client_id = azure_cfg.get('AZURE_CLIENT_ID','')
-    client_secret = azure_cfg.get('AZURE_CLIENT_SECRET','')  
-    tenant_id = azure_cfg.get('AZURE_TENANT_ID','')
-
-    authority = f'https://login.microsoftonline.com/{tenant_id}'
-    scope = ['https://graph.microsoft.com/.default']
-
-    app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
-    token_response = app.acquire_token_for_client(scopes=scope)
-
-    access_token = token_response.get('access_token')
-   
-    site_name = 'InternalTeam'
-    site_domain = 'jjag.sharepoint.com'
-    library = 'Mike'
-    folder_path = target_url 
-    file_name = filename
-
-    # Get Site ID
-    site_url = f'https://graph.microsoft.com/v1.0/sites/{site_domain}:/sites/{site_name}'
-    site_response = requests.get(site_url, headers={'Authorization': f'Bearer {access_token}'})
-
-    if site_response.status_code != 200:
-        print(f"Error getting site ID: {site_response.status_code} - {site_response.text}")
-        return None
-
-    site_id = site_response.json()['id']
-
-    # Upload file
-    upload_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{library}/{folder_path}/{file_name}:/content'
-    #upload_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{folder_path}/{file_name}:/content'
-    print(f"Uploading to URL: {upload_url}")
-
-    upload_response = requests.put(upload_url, headers={
-        'Authorization': f'Bearer {access_token}',
-        'Content-Type': 'application/octet-stream'
-    }, data=file_bytes)
-
-    return upload_response.status_code """
-    
-
-
 
 
 # -----------------------------

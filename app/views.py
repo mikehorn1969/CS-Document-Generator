@@ -299,14 +299,11 @@ def manage_servicearrangements():
 @views_bp.route('/clientcontract', methods=['GET', 'POST'])
 def prepare_client_contract():
 
-    session_contract = session.get('sessionContract') or None
-
-    contract = {}
-    # Load existing contract data if available
-    contract = gather_data(session_contract)
-    if contract:
-        session['sessionContract'] = contract
-        session["clientName"] = contract.get("clientName", "")
+    contract = session.get('sessionContract', {})
+    service_id = contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
 
     # format start and end dates so they will populate date picker input correctly
     # first check if the date is in the expected format
@@ -577,8 +574,13 @@ def download_sp_msa():
 
 @views_bp.route('/clientmsa', methods=['GET', 'POST'])
 def prepare_client_msa():
-    contract = session.get('sessionContract', {})
-    return render_template('clientmsa.html', contract=contract)
+    session_contract = session.get('sessionContract') or None
+
+    if not session_contract:
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('views.index'))
+
+    return render_template('clientmsa.html', contract=session_contract)
 
 
 @views_bp.route('/download_client_msa', methods=['POST'])
@@ -984,15 +986,12 @@ def download_sp_nda():
 
 @views_bp.route('/spcontract', methods=['GET', 'POST'])
 def prepare_sp_contract():
-
-    session_contract = session.get('sessionContract') or None
-
-    contract = {}
-    # Load existing contract data if available
-    contract = gather_data(session_contract)
-    if contract:
-        session['sessionContract'] = contract
-        session["clientName"] = contract.get("clientName", "")
+    
+    contract = session.get('sessionContract', {})
+    service_id = contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
 
     # format start and end dates so they will populate date picker input correctly
     # first check if the date is in the expected format
