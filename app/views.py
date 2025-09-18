@@ -78,9 +78,8 @@ def colleaguedata():
         'colleague.html', contractdata=session_contract)
 
 
-# Tech Debt: consider refactoring this function to reflect new logic
-@views_bp.route('/savecolleaguedata', methods=["POST"])
-def savecolleaguedata():
+@views_bp.route('/validate_c7', methods=["POST"])
+def validate_c7():
     """
     Validates client and service provider details against Companies House
     """
@@ -320,19 +319,12 @@ def prepare_client_contract():
 def download_client_contract():
     # Get session data
     contract = session.get('sessionContract', {})    
-    
     sid = contract.get("sid", "")
-    # Tech Debt: there must be a more elegant way of doing this?
+    
     # Ensure service standards and arrangements are loaded
-    service_standards = session.get('serviceStandards', [])
-    if service_standards is None or len(service_standards) == 0:
-        service_standards = loadServiceStandards(sid)
-        service_standards = session.get('serviceStandards', [])
-    arrangements = session.get('serviceArrangements', {})
-    if arrangements is None or len(arrangements) == 0:
-        arrangements = loadServiceArrangements(sid)
-        arrangements = session.get('serviceArrangements', {})
-
+    service_standards = session.get('serviceStandards', loadServiceStandards(sid))    
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(sid))
+    
     agreement_date = request.form.get('AgreementDate', '')
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
@@ -351,13 +343,15 @@ def download_client_contract():
               "sid", "servicename", "charges", 
               "contactname", "contacttitle", "contactemail", "contactphone", "contactaddress", 
               "startdate", "enddate", "duration", 
-              "noticeperiod", "noticeperiod_unit"]
+              "noticeperiod", "noticeperiod_unit",
+              "dmname", "dmtitle", "dmemail", "dmphone"]
 
     export_columns = ["ClientName", "ClientAddress", "Jursidiction", "ClientCompanyNo",                       
                       "ServiceID", "ServiceName", "ClientCharge", 
                       "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
                       "ServiceStart", "ServiceEnd", "Duration", 
-                      "NoticePeriod", "NoticeUOM"]
+                      "NoticePeriod", "NoticeUOM",
+                      "dmname", "dmtitle", "dmemail", "dmphone"]
     
     for raw_field, column_name in zip(fields, export_columns):
 
@@ -367,16 +361,10 @@ def download_client_contract():
                 field = "England and Wales"
         else:
             field = contract.get(raw_field, '')
-        # Tech debt: hard coded AD details
-        if (raw_field == "dmname" ):
-            field = "Julian Brown"
-        if (raw_field == "dmtitle" ):
-            field = "Practice Director"
-        if (raw_field == "dmemail" ):
-            field = "julian.brown@changespecialists.co.uk"
+        field = contract.get(raw_field, '')
+        # Tech debt: hard coded AD details        
         if (raw_field == "dmphone" ):
-            field = "07123 123456"    
-
+            field = "01379 871144"    
         row[column_name] = field
 
     row["SpecialConditions"] = special_conditions
@@ -1018,18 +1006,10 @@ def download_sp_contract():
 
     cs_standards = loadServiceStandards("CS") or []
 
-    # Tech Debt: there must be a more elegant way of doing this?
     # Ensure service standards and arrangements are loaded
-    service_standards = session.get('serviceStandards', [])
-    if service_standards is None or len(service_standards) == 0:
-        service_standards = loadServiceStandards(service_id)
-        service_standards = session.get('serviceStandards', [])
-    
-    arrangements = session.get('serviceArrangements', {})
-    if arrangements is None or len(arrangements) == 0:
-        arrangements = loadServiceArrangements(service_id)
-        arrangements = session.get('serviceArrangements', {})
-    
+    service_standards = session.get('serviceStandards', loadServiceStandards(service_id))
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))
+        
     agreement_date = request.form.get('AgreementDate', '')
     
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()

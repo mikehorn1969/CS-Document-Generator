@@ -248,16 +248,16 @@ def getC7Requirements(company_name,contact_name):
 
     user_id = cfg["C7_USERID"]
     hdr = cfg["C7_HDR"]
-    # Tech debt: ignore dead requirements?
-    # notStatus = ["Closed","Cancelled","On Hold","Dead","Filled"]
 
     try:               
         url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&ContactName={contact_name}"
-
         
-        response = requests.get(url, headers=hdr)
-        response_json = response.json()
-
+        if isinstance(hdr, dict):
+            response = requests.get(url, headers=hdr)
+            response_json = response.json()
+        else:
+            response_json = {}
+            
         requirements = []
         for item in response_json:
 

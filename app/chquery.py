@@ -173,7 +173,7 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
 
             nameapi_body = json.dumps(body_dict)
             nameapi_response = requests.post(nameapi_url, data=nameapi_body, headers=header_dict)
-            nameapi_response.raise_for_status() # Tech Debt: use this througout?
+            nameapi_response.raise_for_status() 
             nameapi_result = nameapi_response.json()
 
             is_director = nameapi_result.get("matchType") in "EQUAL,MATCHING,SIMILAR,RELATION" # Tech Debt: may need to remove RELATION ?
