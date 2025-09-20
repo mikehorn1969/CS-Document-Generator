@@ -138,7 +138,7 @@ def set_servicestandards():
                     
         if which == "SP Standards":
             # Load available contract data
-            contract = gather_data(session_contract)
+            contract = session_contract
             if contract:
                 session['sessionContract'] = contract                
         else:
