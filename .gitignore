@@ -12,3 +12,5 @@ sandbox
 *.log
 *.db
 migrations
+db-scripts
+cs-data-project 

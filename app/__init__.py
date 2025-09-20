@@ -4,6 +4,7 @@ from flask_migrate import Migrate  # Tech Debt: my be able to remove
 import os, secrets
 import dotenv
 from sqlalchemy import create_engine
+
 from sqlalchemy.orm import sessionmaker
 
 # Initialise extensions globally
@@ -17,14 +18,13 @@ def create_app():
     # Load the config
     # Select config class based on environment variable
     dotenv.load_dotenv()
+
     config_mode = os.environ.get('FLASK_CONFIG', 'DevelopmentConfig')
     app.config.from_object(f'config.{config_mode}')
-
     app.secret_key = secrets.token_hex(32)
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    db_path = os.path.join(basedir, '..', 'service_standards.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", f"sqlite:///{db_path}")
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    engine = build_engine()
+    app.config['SQLALCHEMY_DATABASE_URI'] = str(engine.url)  # Flask needs this
     db.init_app(app)
     migrate.init_app(app, db)
 
@@ -32,9 +32,51 @@ def create_app():
     app.register_blueprint(views_bp)
 
     return app
-    
+
 
 def build_engine():
+    from urllib.parse import quote_plus
+    # Base ODBC parameters
+     # Choose auth by environment (simple heuristic)
+    running_in_azure = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("AZURE_CONTAINER_APP_NAME"))
+
+    if running_in_azure:
+        odbc_params = (
+            "Driver=ODBC Driver 18 for SQL Server;"
+            "Server=tcp:cs-datastore.database.windows.net,1433;"
+            "Database=cs-datastore;"
+            "Encrypt=yes;"
+            "TrustServerCertificate=no;"
+            "Authentication=ActiveDirectoryMsi"
+        )
+            # user-assigned managed identity
+        msi_client_id = os.getenv("AZURE_CLIENT_ID")
+        if msi_client_id:
+            odbc_params += f";MsiClientId={msi_client_id}"
+
+    else:
+        odbc_params = (
+            "Driver=ODBC Driver 18 for SQL Server;"
+            "Server=tcp:cs-datastore.database.windows.net,1433;"
+            "Database=cs-datastore;"
+            "Encrypt=yes;"
+            "TrustServerCertificate=no;"
+            "Authentication=ActiveDirectoryInteractive"
+        )
+
+    return create_engine(
+        "mssql+pyodbc:///?odbc_connect=" + quote_plus(odbc_params),
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        fast_executemany=True,
+    )
+
+
+    
+    
+    
+
+""" def build_engine():
     conn_str = os.environ["DATABASE_URL"]
     engine = create_engine(
         conn_str,
@@ -42,7 +84,5 @@ def build_engine():
         pool_recycle=1800,        # recycle every 30 mins
         fast_executemany=True     # faster bulk inserts with pyodbc
     )
-    return engine
 
-
-    
+    return engine """
