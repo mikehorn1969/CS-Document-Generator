@@ -122,7 +122,11 @@ def set_servicestandards():
     service_id = ""
     contract = {}
 
+    # Determine which standards to show - either passed in query string or form data
     which = request.args.get('which')  # "CS Standards" or "SP Standards"
+    if not which:
+        which = request.form.get('which', 'CS Standards')
+
     # If SP Standards button clicked, get session data
     if which == "SP Standards":        
         session_contract = session.get('sessionContract', {})
@@ -145,7 +149,7 @@ def set_servicestandards():
             # No contract data needed for CS Standards
             contract = {"sid": service_id}
 
-    if request.method == 'POST':
+    elif request.method == 'POST':
 
         # Gather standards data
         stdids = request.form.getlist('id')
@@ -184,7 +188,7 @@ def set_servicestandards():
 
     # (re)load for display 
     standards = loadServiceStandards(service_id) 
-    return render_template('standards.html', serviceid=service_id, standards=standards)
+    return render_template('standards.html', serviceid=service_id, standards=standards, which=which)
 
 
 @views_bp.route('/delete/<int:stdid>', methods=['POST'])
