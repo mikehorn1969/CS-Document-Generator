@@ -59,15 +59,16 @@ def build_engine():
         sql_password = os.getenv("SQL_PASSWORD")
         sql_servername = os.getenv("SQL_SERVERNAME")
         sql_databasename = os.getenv("SQL_DATABASENAME")
+        sql_port = os.getenv("SQL_PORT", "1433")
         odbc_params = (
             "Driver=ODBC Driver 18 for SQL Server;"
-            f"Server=tcp:{sql_servername},1433;"
+            f"Server=tcp:{sql_servername},{sql_port};"
             f"Database={sql_databasename};"
             f"Uid={sql_username};"
             f"Pwd={sql_password};"
             "Encrypt=yes;"
             "TrustServerCertificate=no;"
-            "Login Timeout=30;"
+            "Login Timeout=90;"
             "ConnectRetryCount=3;"
             "ConnectRetryInterval=10;"
         )
