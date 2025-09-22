@@ -3,7 +3,7 @@
 import requests, string
 from app import db
 from app.classes import Company, Contact, Config, Requirement, Candidate, C7User
-from app.helper import load_config, formatName
+from app.helper import load_config, formatName, debugMode
 import re
 from datetime import datetime
 from app.chquery import searchCH, getCHbasics 
@@ -13,7 +13,11 @@ from sqlalchemy import select
 from app.models import ServiceArrangement, ServiceStandard
 from flask import Flask, session
 
+
 def getC7Company(company_id):
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getC7Company: Fetching data for CompanyId {company_id}")
     
     cfg = load_config()
     user_id = cfg["C7_USERID"]
@@ -41,6 +45,9 @@ def getC7Company(company_id):
 
 
 def getC7Contact(contact_id):
+
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getC7Contact: Fetching data for ContactId {contact_id}")
 
     cfg = load_config()
     user_id = cfg["C7_USERID"]
@@ -74,6 +81,9 @@ def getC7Contact(contact_id):
 
 def loadC7ContactData():
      
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} loadC7ContactData: Fetching all contacts")
+        
     cfg= load_config()
     user_id = cfg["C7_USERID"]
     hdr = cfg["C7_HDR"] 
@@ -133,6 +143,9 @@ def loadC7ContactData():
 
 def loadC7Clients():
     
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} loadC7Clients: Fetching all clients")
+    
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
@@ -187,6 +200,9 @@ def loadC7Clients():
     
 
 def getContactsByCompany(CompanyName):
+
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getContactsByCompany: Searching contacts for CompanyName {CompanyName}")
 
     cfg = load_config()
     user_id = cfg["C7_USERID"]
@@ -244,6 +260,9 @@ def getContactsByCompany(CompanyName):
 
 def getC7Requirements(company_name,contact_name):
 
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getC7Requirements: Searching requirements for CompanyName {company_name} and ContactName {contact_name}")
+    
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
@@ -290,6 +309,9 @@ def getC7Requirements(company_name,contact_name):
 
 
 def getC7RequirementCandidates(requirementId):
+
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getC7RequirementCandidates: Fetching candidates for RequirementId {requirementId}")
     
     cfg = load_config()
 
@@ -323,6 +345,9 @@ def getC7RequirementCandidates(requirementId):
 
 def searchC7Candidate(candidate_name):
 
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} searchC7Candidate: Searching for candidate {candidate_name}")
+
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
@@ -345,6 +370,9 @@ def searchC7Candidate(candidate_name):
 
 
 def getC7contract(candidate_id):
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getC7contract: Fetching contract data for CandidateId {candidate_id}")
     
     # Initialize variables
     candidate_address = ""
@@ -579,6 +607,9 @@ def getC7contract(candidate_id):
 
 
 def loadCandidates():
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} loadCandidates: Fetching all candidates")
 
     cfg = load_config()
 
@@ -616,6 +647,10 @@ def loadCandidates():
 
 
 def gather_data(session_contract):
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} gather_data: Gathering contract data from C7")
+    
     contract = {}
     c7contractdata = {}
 
@@ -697,6 +732,10 @@ def gather_data(session_contract):
 
 def getC7Candidate(candidate_id, search_term: Optional[str] = None):
 
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getC7Candidate: Fetching data for CandidateId {candidate_id} with search term '{search_term}'")
+
+
     candidate_name = ""
     candidate_phone = ""
     candidate_email = ""
@@ -738,9 +777,9 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
                     None
                 )
             
-            # serch Companies House API using name and company number
+            # for candiate-specific calls, search Companies House API using name and company number
             # populate registered address when a match is found
-            if (candidate_ltd_name and candidate_reg_number):
+            if search_term is None and (candidate_ltd_name and candidate_reg_number):
                 candidate_address, candidate_jurisdiction = getCHbasics(candidate_ltd_name.strip(), candidate_reg_number.strip())
             else:                    
                 candidate_jurisdiction = "england-wales"
@@ -759,6 +798,9 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
 
 
 def loadC7Users():
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} loadC7Users: Fetching all users")
     
     cfg = load_config()
 
@@ -787,6 +829,9 @@ def loadC7Users():
 
 def loadServiceStandards(service_id):
         
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: Fetching standards for Service ID {service_id}")
+        
     if not service_id:                
         return
     
@@ -801,6 +846,10 @@ def loadServiceStandards(service_id):
 
 
 def loadServiceArrangements(service_id):
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceArrangements: Fetching arrangements for Service ID {service_id}")
+    
     if not service_id:
         return
 
@@ -814,6 +863,9 @@ def loadServiceArrangements(service_id):
 
 
 def getC7Candidates(query):
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getC7Candidates: Searching candidates with query '{query}'")    
     
     # load config
     cfg = load_config()
@@ -832,3 +884,5 @@ def getC7Candidates(query):
         return []
     
     return payload
+
+

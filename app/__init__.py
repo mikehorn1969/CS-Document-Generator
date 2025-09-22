@@ -55,13 +55,21 @@ def build_engine():
             odbc_params += f";MsiClientId={msi_client_id}"
 
     else:
+        sql_username = os.getenv("SQL_USERNAME")
+        sql_password = os.getenv("SQL_PASSWORD")
+        sql_servername = os.getenv("SQL_SERVERNAME")
+        sql_databasename = os.getenv("SQL_DATABASENAME")
         odbc_params = (
             "Driver=ODBC Driver 18 for SQL Server;"
-            "Server=tcp:cs-datastore.database.windows.net,1433;"
-            "Database=cs-datastore;"
+            f"Server=tcp:{sql_servername},1433;"
+            f"Database={sql_databasename};"
+            f"Uid={sql_username};"
+            f"Pwd={sql_password};"
             "Encrypt=yes;"
             "TrustServerCertificate=no;"
-            "Authentication=ActiveDirectoryInteractive"
+            "Login Timeout=30;"
+            "ConnectRetryCount=3;"
+            "ConnectRetryInterval=10;"
         )
 
     return create_engine(

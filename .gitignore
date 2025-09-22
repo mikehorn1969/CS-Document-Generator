@@ -14,3 +14,4 @@ sandbox
 migrations
 db-scripts
 cs-data-project 
+test_odbc.py

@@ -5,7 +5,9 @@ import os
 import io
 import requests
 import paramiko
+import time
 from typing import Optional, Dict
+from sqlalchemy.exc import OperationalError
 
 # local .env support
 from dotenv import load_dotenv
@@ -238,3 +240,25 @@ def open_ssh_client(
         timeout=30,
     )
     return client
+
+
+def wait_for_db(max_wait=120, interval=5):
+    """Wait for the Azure database to be available before starting the app."""
+    waited = 0
+    while waited < max_wait:
+        try:
+            # Try a simple query
+            db.session.execute("SELECT 1")
+            print("Database is available.")
+            return True
+        except OperationalError:
+            print(f"Database not available, retrying in {interval}s...")
+            time.sleep(interval)
+            waited += interval
+    print("Database did not become available in time.")
+    return False
+
+
+def debugMode():
+    config_mode = os.environ.get('FLASK_CONFIG', 'DevelopmentConfig')
+    return config_mode == 'DevelopmentConfig'
