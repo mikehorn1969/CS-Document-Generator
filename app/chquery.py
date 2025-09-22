@@ -1,12 +1,16 @@
 from __future__ import annotations
 import requests, json
 from app.classes import Config
-from app.helper import load_config, formatName
+from app.helper import load_config, formatName, debugMode
 from typing import Optional, Dict, Any
 import os
+from datetime import datetime
 
 
 def getCHRecord(companyNo):
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getCHRecord: Fetching record for CompanyNo {companyNo}")
     
     subscription_key = os.environ.get("CH_KEY", None)
     if not subscription_key:
@@ -27,6 +31,9 @@ def getCHRecord(companyNo):
 
 
 def searchCH(companyName):
+
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} searchCH: Searching for company '{companyName}'")
 
     subscription_key = os.environ.get("CH_KEY", None)
     if not subscription_key:
@@ -51,6 +58,10 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
     Validate a Companies House entry and (optionally) confirm a director.
     Returns a dict with keys: Valid, Narrative, CompanyNumber, Is Director, Director, Jurisdiction, Status.
     """
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} validateCH: Validating company '{ch_name}' with number '{ch_number}' and director '{director}'")
+    
     # --- config --------------------------------------------------------------
     subscription_key = os.environ.get("CH_KEY", None)
     if not subscription_key:
@@ -197,6 +208,10 @@ def getCHbasics(ltd_name, reg_number):
     """
     returns registered address and jurisdiction 
     """
+    
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} getCHbasics: Getting basics for company '{ltd_name}' with number '{reg_number}'")
+    
     return_address = ""
     return_jurisdiction = ""
     ch_result = searchCH(ltd_name)
