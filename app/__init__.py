@@ -48,6 +48,9 @@ def build_engine():
             "Encrypt=yes;"
             "TrustServerCertificate=no;"
             "Authentication=ActiveDirectoryMsi"
+            "Login Timeout=90;"
+            "ConnectRetryCount=3;"
+            "ConnectRetryInterval=10;"
         )
             # user-assigned managed identity
         msi_client_id = os.getenv("AZURE_CLIENT_ID")
