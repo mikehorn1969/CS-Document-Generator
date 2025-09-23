@@ -193,6 +193,9 @@ def set_servicestandards():
 
 @views_bp.route('/delete/<int:stdid>', methods=['POST'])
 def delete_standard(stdid):
+    """
+    Deletes a service standard by its ID.
+    """
     standard = ServiceStandard.query.get_or_404(stdid)
     db.session.delete(standard)
     db.session.commit()
@@ -201,21 +204,16 @@ def delete_standard(stdid):
 
 @views_bp.route('/servicearrangements', methods=['GET', 'POST'])
 def manage_servicearrangements():
-    
+    """
+    View and edit service arrangements for a given service ID.
+    """
     session_contract = session.get('sessionContract', {})
     service_id = session_contract.get("sid", "")
     if service_id is None or service_id == "":
         flash("Select a Service Provider with a Service ID before continuing.", "error")
         return redirect(url_for('views.index'))
 
-    # Load contract & current arrangements
-    contract = gather_data(session_contract)
-    if not contract:
-        flash("Failed to load contract data.", "error")
-        return redirect(url_for('views.index'))
-
-    session['sessionContract'] = contract
-    #session["candidateName"] = contract.get("candidateName", "")
+    contract = session['sessionContract']    
     service_id = contract.get("sid", "")
 
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -301,7 +299,9 @@ def manage_servicearrangements():
 
 @views_bp.route('/clientcontract', methods=['GET', 'POST'])
 def prepare_client_contract():
-
+    """
+    View Colleague contract details.
+    """
     contract = session.get('sessionContract', {})
     service_id = contract.get("sid", "")
     if service_id is None or service_id == "":
@@ -321,6 +321,10 @@ def prepare_client_contract():
 
 @views_bp.route('/download_client_contract', methods=['POST'])
 def download_client_contract():
+    """
+    Create an excel data file for merging into a Client Statement of Service document.
+    Upload this file to SharePoint, download the file when SP upload fails.
+    """
     # Get session data
     contract = session.get('sessionContract', {})    
     sid = contract.get("sid", "")
@@ -458,7 +462,9 @@ def download_client_contract():
 
 @views_bp.route('/spmsa', methods=['GET', 'POST'])
 def prepare_sp_msa():
-    
+    """
+    Load the Service Provider MSA page.
+    """
     session_contract = session.get('sessionContract') or None
 
     if not session_contract:
@@ -470,7 +476,9 @@ def prepare_sp_msa():
 
 @views_bp.route('/spnda', methods=['GET', 'POST'])
 def prepare_sp_nda():
-
+    """
+    Load the Service Provider NDA page.
+    """
     session_contract = session.get('sessionContract') or None
 
     if not session_contract:
@@ -482,7 +490,10 @@ def prepare_sp_nda():
 
 @views_bp.route('/download_sp_msa', methods=['POST'])
 def download_sp_msa():
-
+    """
+    Create an excel data file for merging into a Service Provider MSA document.
+    Upload this file to SharePoint, download the file when SP upload fails so that it can be manually uploaded.
+    """    
     # Get session data
     contract = session.get('sessionContract', {})
     if not contract:
