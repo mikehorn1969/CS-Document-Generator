@@ -2,7 +2,7 @@ import os
 from threading import Thread
 from flask import redirect, render_template, url_for
 from app import create_app
-from helper import wait_for_db
+from app.helper import wait_for_db
 
 app = create_app()
 db_ready = False
