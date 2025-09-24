@@ -43,9 +43,10 @@ def build_engine():
     if running_in_azure:
         sql_server = os.getenv("SQL_SERVERNAME")
         sql_database = os.getenv("SQL_DATABASENAME")    
+        sql_port = os.getenv("SQL_PORT", "1433")
         odbc_params = (
                 "Driver={ODBC Driver 18 for SQL Server};"
-                f"Server=tcp:{sql_server},1433;"
+                f"Server=tcp:{sql_server},{sql_port};"
                 f"Database={sql_database};"
                 "Authentication=ActiveDirectoryMsi;"
                 "Encrypt=yes;"
