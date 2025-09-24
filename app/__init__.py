@@ -4,6 +4,7 @@ from flask_migrate import Migrate  # Tech Debt: my be able to remove
 import os, secrets
 import dotenv
 from sqlalchemy import create_engine
+from sqlalchemy import text
 
 from sqlalchemy.orm import sessionmaker
 
@@ -36,6 +37,7 @@ def create_app():
 
 def build_engine():
     from urllib.parse import quote_plus
+    import logging
     # Base ODBC parameters
      # Choose auth by environment (simple heuristic)
     running_in_azure = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("AZURE_CONTAINER_APP_NAME"))
@@ -44,13 +46,15 @@ def build_engine():
         sql_server = os.getenv("SQL_SERVERNAME")
         sql_database = os.getenv("SQL_DATABASENAME")    
         sql_port = os.getenv("SQL_PORT", "1433")
+        if not sql_server or not sql_database:
+            raise RuntimeError("Missing SQL_SERVERNAME or SQL_DATABASENAME environment variable for Azure.")
         odbc_params = (
-                "Driver={ODBC Driver 18 for SQL Server};"
-                f"Server=tcp:{sql_server},{sql_port};"
-                f"Database={sql_database};"
-                "Authentication=ActiveDirectoryMsi;"
-                "Encrypt=yes;"
-                "TrustServerCertificate=no;"
+            "Driver={ODBC Driver 18 for SQL Server};"
+            f"Server=tcp:{sql_server},{sql_port};"
+            f"Database={sql_database};"
+            "Authentication=ActiveDirectoryMsi;"
+            "Encrypt=yes;"
+            "TrustServerCertificate=no;"
         )
             # user-assigned managed identity
         msi_client_id = os.getenv("AZURE_CLIENT_ID")
@@ -63,8 +67,10 @@ def build_engine():
         sql_servername = os.getenv("SQL_SERVERNAME")
         sql_databasename = os.getenv("SQL_DATABASENAME")
         sql_port = os.getenv("SQL_PORT", "1433")
+        if not all([sql_username, sql_password, sql_servername, sql_databasename]):
+            raise RuntimeError("Missing one or more required SQL environment variables for local connection.")
         odbc_params = (
-            "Driver=ODBC Driver 18 for SQL Server;"
+            "Driver={ODBC Driver 18 for SQL Server};"
             f"Server=tcp:{sql_servername},{sql_port};"
             f"Database={sql_databasename};"
             f"Uid={sql_username};"
@@ -76,17 +82,28 @@ def build_engine():
             "ConnectRetryInterval=10;"
         )
 
-    return create_engine(
+    # Optional: log connection string without password for debugging
+    safe_odbc_params = odbc_params.replace(f"Pwd={os.getenv('SQL_PASSWORD', '')};", "Pwd=****;")
+    logging.info(f"Connecting to SQL Server with: {safe_odbc_params}")
+
+    engine = create_engine(
         "mssql+pyodbc:///?odbc_connect=" + quote_plus(odbc_params),
         pool_pre_ping=True,
         pool_recycle=1800,
         fast_executemany=True,
     )
 
+    # Test connection on startup
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT stdid FROM dbo.ServiceStandard WHERE 1=0"))  # simple test query
+            logging.info("Database connection successful.")
+    except Exception as e:
+        logging.error(f"Database connection failed: {e}")
+        raise
 
-    
-    
-    
+    return engine
+
 
 """ def build_engine():
     conn_str = os.environ["DATABASE_URL"]
