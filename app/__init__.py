@@ -40,7 +40,7 @@ def build_engine():
     import logging
     # Base ODBC parameters
      # Choose auth by environment (simple heuristic)
-    running_in_azure = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("AZURE_CONTAINER_APP_NAME"))
+    """ running_in_azure = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("AZURE_CONTAINER_APP_NAME"))
 
     if running_in_azure:
         sql_server = os.getenv("SQL_SERVERNAME")
@@ -61,7 +61,7 @@ def build_engine():
         if msi_client_id:
             odbc_params += f";MsiClientId={msi_client_id}"
 
-    else:
+    else: """
         sql_username = os.getenv("SQL_USERNAME")
         sql_password = os.getenv("SQL_PASSWORD")
         sql_servername = os.getenv("SQL_SERVERNAME")
@@ -104,14 +104,3 @@ def build_engine():
 
     return engine
 
-
-""" def build_engine():
-    conn_str = os.environ["DATABASE_URL"]
-    engine = create_engine(
-        conn_str,
-        pool_pre_ping=True,       # drops stale connections
-        pool_recycle=1800,        # recycle every 30 mins
-        fast_executemany=True     # faster bulk inserts with pyodbc
-    )
-
-    return engine """
