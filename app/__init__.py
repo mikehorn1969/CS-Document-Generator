@@ -41,16 +41,15 @@ def build_engine():
     running_in_azure = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("AZURE_CONTAINER_APP_NAME"))
 
     if running_in_azure:
+        sql_server = os.getenv("SQL_SERVERNAME")
+        sql_database = os.getenv("SQL_DATABASENAME")    
         odbc_params = (
-            "Driver=ODBC Driver 18 for SQL Server;"
-            "Server=tcp:cs-datastore.database.windows.net,1433;"
-            "Database=cs-datastore;"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-            "Authentication=ActiveDirectoryMsi"
-            "Login Timeout=90;"
-            "ConnectRetryCount=3;"
-            "ConnectRetryInterval=10;"
+                "Driver={ODBC Driver 18 for SQL Server};"
+                f"Server=tcp:{sql_server},1433;"
+                f"Database={sql_database};"
+                "Authentication=ActiveDirectoryMsi;"
+                "Encrypt=yes;"
+                "TrustServerCertificate=no;"
         )
             # user-assigned managed identity
         msi_client_id = os.getenv("AZURE_CLIENT_ID")
