@@ -62,25 +62,25 @@ def build_engine():
             odbc_params += f";MsiClientId={msi_client_id}"
 
     else: """
-        sql_username = os.getenv("SQL_USERNAME")
-        sql_password = os.getenv("SQL_PASSWORD")
-        sql_servername = os.getenv("SQL_SERVERNAME")
-        sql_databasename = os.getenv("SQL_DATABASENAME")
-        sql_port = os.getenv("SQL_PORT", "1433")
-        if not all([sql_username, sql_password, sql_servername, sql_databasename]):
-            raise RuntimeError("Missing one or more required SQL environment variables for local connection.")
-        odbc_params = (
-            "Driver={ODBC Driver 18 for SQL Server};"
-            f"Server=tcp:{sql_servername},{sql_port};"
-            f"Database={sql_databasename};"
-            f"Uid={sql_username};"
-            f"Pwd={sql_password};"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-            "Login Timeout=90;"
-            "ConnectRetryCount=3;"
-            "ConnectRetryInterval=10;"
-        )
+    sql_username = os.getenv("SQL_USERNAME")
+    sql_password = os.getenv("SQL_PASSWORD")
+    sql_servername = os.getenv("SQL_SERVERNAME")
+    sql_databasename = os.getenv("SQL_DATABASENAME")
+    sql_port = os.getenv("SQL_PORT", "1433")
+    if not all([sql_username, sql_password, sql_servername, sql_databasename]):
+        raise RuntimeError("Missing one or more required SQL environment variables for local connection.")
+    odbc_params = (
+        "Driver={ODBC Driver 18 for SQL Server};"
+        f"Server=tcp:{sql_servername},{sql_port};"
+        f"Database={sql_databasename};"
+        f"Uid={sql_username};"
+        f"Pwd={sql_password};"
+        "Encrypt=yes;"
+        "TrustServerCertificate=no;"
+        "Login Timeout=90;"
+        "ConnectRetryCount=3;"
+        "ConnectRetryInterval=10;"
+    )
 
     # Optional: log connection string without password for debugging
     safe_odbc_params = odbc_params.replace(f"Pwd={os.getenv('SQL_PASSWORD', '')};", "Pwd=****;")
