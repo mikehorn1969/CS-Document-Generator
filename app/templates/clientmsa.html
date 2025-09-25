@@ -10,9 +10,10 @@
 
 <h1>Client MSA</h1>
 
-<div class="clientgrid">
-    <div> <!-- Left column -->
-        <form id = "submit_client_msa" action="/download_client_msa" method="post">
+<form id = "submit_client_msa" action="/download_client_msa" method="post">
+    <div class="clientgrid">
+        <div> <!-- Left column -->
+        
             <div>
                 <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>    
                 <div>        
@@ -31,34 +32,33 @@
                 <input type="submit" name="btSumbit" class="button" id="submit-btn" value="Submit" required>
                 <a href="{{ url_for('views.index') }}" class="button">Back</a>
             </div>
-        </form>
-    </div>
-    <div> <!-- Right column -->        
-        <div>
-            <label for="RegNumber" class="index-label"><strong>Company Registration Number</strong></label>    
-            <div>
-                <input type="text" id="RegNumber" name="RegNumber" placeholder="Company Number" value="{{ contract['companyregistrationnumber'] if contract and contract.get('companyregistrationnumber') else '' }}" required form="submit_client_msa">                    
-            </div>
+        
         </div>
-        <div>
-            <label for="RegAddress" class="index-label"><strong>Registered Office</strong></label>    
+        <div> <!-- Right column -->        
             <div>
-                <input type="text" id="RegAddress" name="RegAddress" placeholder="Registered Office Address" class="address-textbox" value="{{ contract['companyaddress'] if contract and contract.get('companyaddress') else '' }}" required form="submit_client_msa">
+                <label for="RegNumber" class="index-label"><strong>Company Registration Number</strong></label>    
+                <div>
+                    <input type="text" id="RegNumber" name="RegNumber" placeholder="Company Number" value="{{ contract['companyregistrationnumber'] if contract and contract.get('companyregistrationnumber') else '' }}" required form="submit_client_msa">                    
+                </div>
             </div>
-        </div>    
-        <div>
-            <label for="Jurisdiction" class="index-label"><strong>Legal jurisdiction</strong></label>    
             <div>
-                <input type="text" id="Jurisdiction" name="Jurisdiction" placeholder="Jurisdiction" class="address-textbox" \
-                    value="{{ contract['companyjurisdiction'] if contract and contract.get('companyjurisdiction') else '' }}" required form="submit_client_msa">
-            </div>
-        </div>    
-
-        <form action="/submit_client_msa" method="post"></form>
+                <label for="RegAddress" class="index-label"><strong>Registered Office</strong></label>    
+                <div>
+                    <input type="text" id="RegAddress" name="RegAddress" placeholder="Registered Office Address" class="address-textbox" value="{{ contract['companyaddress'] if contract and contract.get('companyaddress') else '' }}" required form="submit_client_msa">
+                </div>
+            </div>    
+            <div>
+                <label for="Jurisdiction" class="index-label"><strong>Legal jurisdiction</strong></label>    
+                <div>
+                    <input type="text" id="Jurisdiction" name="Jurisdiction" placeholder="Jurisdiction" class="address-textbox" \
+                        value="{{ contract['companyjurisdiction'] if contract and contract.get('companyjurisdiction') else '' }}" required form="submit_client_msa">
+                </div>
+            </div>    
             <div>
                 <label for="contactname" class="index-label"><strong>Client Contact</strong></label>    
                 <div>
-                    <input type="text" id="contactname" name="contactname" placeholder="Begin typing a contact name..." autocomplete="off" class="name-textbox" \
+                    <input type="text" id="contactname" name="contactname" placeholder="Begin typing a contact name..." \
+                        autocomplete="off" class="name-textbox" \
                         value="{{ contract['contactname'] if contract and contract.get('contactname') else '' }}" required >
                         <div id="contactsuggestions"></div>
                 </div>
@@ -85,9 +85,8 @@
                         value="{{ contract['contactphone'] if contract and contract.get('contactphone') else '' }}" required >
                 </div>
             </div>
-        </form>
+        </div>
     </div>
-</div>
 </form>
 
 <script>

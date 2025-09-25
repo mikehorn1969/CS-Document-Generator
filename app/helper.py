@@ -69,6 +69,8 @@ def load_config() -> dict[str, str | dict]:
     c7_key = _get_secret("C7_KEY", "C7APIKey")
     c7_userid = _get_secret("C7_USERID", "C7USERID")
     ch_key = _get_secret("CH_KEY", "CHKEY")
+    sql_username = _get_secret("SQL-USERNAME", "SQL-USERNAME")
+    sql_password = _get_secret("SQL-PASSWORD", "SQL-PASSWORD")
 
     # NameAPI can arrive split; support both patterns.
     nameapi_key = os.environ.get("NAMEAPI_KEY")
@@ -88,6 +90,8 @@ def load_config() -> dict[str, str | dict]:
         "CH_KEY": ch_key,
         "NAMEAPI_KEY": nameapi_key,
         "C7_HDR": c7_hdr,
+        "SQL-USERNAME": sql_username,
+        "SQL-PASSWORD": sql_password,
     }
 
 

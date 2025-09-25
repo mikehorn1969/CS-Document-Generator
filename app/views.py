@@ -78,8 +78,8 @@ def colleaguedata():
         'colleague.html', contractdata=session_contract)
 
 
-@views_bp.route('/validate_c7', methods=["POST"])
-def validate_c7():
+@views_bp.route('/validateC7', methods=["POST"])
+def validateC7():
     """
     Validates client and service provider details against Companies House
     """
@@ -501,6 +501,7 @@ def download_sp_msa():
         return redirect(url_for('views.index'))
 
     agreement_date = request.form.get('AgreementDate', '')
+    candidate_email = request.form.get('candidate-email', '')
     
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
@@ -516,10 +517,10 @@ def download_sp_msa():
     # Populate row with contract fields
     # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
-        if ( raw_field == "candidatejurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
-            field = "England and Wales"
-        elif ( raw_field == "candidateName" ):
+        if ( raw_field == "candidateName" ):
             field = formatName(contract.get(raw_field,''))
+        elif (raw_field == "candidateemail"):
+            field = candidate_email
         else:
             field = contract.get(raw_field, '')
 
@@ -592,22 +593,10 @@ def download_client_msa():
     # Get session data, obtain it from the form if necessary - most likely for an MSA
     contract = session.get('sessionContract', {})
     if not contract:
-        client_name = request.form.get('clientname', '')
-        client_id = request.form.get('clientId', '')    
-        reg_no = request.form.get('RegNumber', '')
-        jurisdiction = request.form.get('Jurisdiction', '')
-        address = request.form.get('RegAddress', '')
-
-        contract = {
-            'companyname': client_name,
-            'companyid': client_id,
-            'companyregistrationnumber': reg_no,
-            'companyjurisdiction': jurisdiction,
-            'companyaddress': address,
-            'contactname': request.form.get('contactname', ''),
-            'contacttitle': request.form.get('contactTitle', '')
-        }
-
+        flash(f"No data found for Client MSA.", "error")
+        return redirect(url_for('views.index'))
+        
+    email_address = request.form.get('contactEmail', '')
     agreement_date = request.form.get('AgreementDate', '')
 
     f_agreement_date = ''
@@ -620,22 +609,26 @@ def download_client_msa():
     data_rows = []
     row = {}
     row["AgreementDate"] = f_agreement_date
-    fields = ["companyname", "companyregistrationnumber", "companyjurisdiction", "companyaddress", "contactname", "contacttitle"]
+    fields = ["companyname", "companyregistrationnumber", "companyjurisdiction", "companyaddress", "contactname", "contacttitle", "contactemail", "contactphone"]
 
-    export_columns = ["ClientName", "CompanyNumber", "Jurisdiction", "CompanyAddress", "ContactName", "ContactTitle"]
+    export_columns = ["ClientName", "CompanyNumber", "Jurisdiction", "CompanyAddress", "ContactName", "ContactTitle", "ContactEmail", "ContactPhone"]
 
     # Populate row with contract fields
     # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
-        if ( raw_field == "companyjurisdiction" and contract.get(raw_field,'').strip().lower() == "england-wales" ):
-            field = "England and Wales"
-        elif ( raw_field == "candidateName" ):
+        if ( raw_field == "candidateName" ):
             field = formatName(contract.get(raw_field,''))
+        elif (raw_field == "contactemail"):
+            field = email_address
         else:
             field = contract.get(raw_field, '')
 
+
         row[column_name] = field
-            
+
+    # Tech debt: hard coded contract type
+    row["ContractType"] = "Flex"
+    
     data_rows.append(row)
 
     # Create DataFrame
@@ -740,7 +733,6 @@ def fetch_candidates(query: str) -> List[dict]:
     if payload is None or not isinstance(payload, list) or len(payload) == 0:
         return []   
 
-    # Normalise to list[str] — tweak this for your API’s schema
     results = []
     
     for candidate_id in payload:

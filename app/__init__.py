@@ -1,10 +1,11 @@
-from flask import Flask
+from flask import Flask, app
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate  # Tech Debt: my be able to remove
 import os, secrets
 import dotenv
 from sqlalchemy import create_engine
 from sqlalchemy import text
+from app.helper import load_config
 
 from sqlalchemy.orm import sessionmaker
 
@@ -38,6 +39,7 @@ def create_app():
 def build_engine():
     from urllib.parse import quote_plus
     import logging
+    import time
     # Base ODBC parameters
      # Choose auth by environment (simple heuristic)
     """ running_in_azure = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("AZURE_CONTAINER_APP_NAME"))
@@ -62,8 +64,13 @@ def build_engine():
             odbc_params += f";MsiClientId={msi_client_id}"
 
     else: """
-    sql_username = os.getenv("SQL_USERNAME")
-    sql_password = os.getenv("SQL_PASSWORD")
+    sql_username = os.getenv("SQL-USERNAME")
+    sql_password = os.getenv("SQL-PASSWORD")
+    if not sql_username or not sql_password:
+        cfg = load_config()
+        sql_username = cfg["SQL-USERNAME"]
+        sql_password = cfg["SQL-PASSWORD"]
+
     sql_servername = os.getenv("SQL_SERVERNAME")
     sql_databasename = os.getenv("SQL_DATABASENAME")
     sql_port = os.getenv("SQL_PORT", "1433")
@@ -93,14 +100,27 @@ def build_engine():
         fast_executemany=True,
     )
 
-    # Test connection on startup
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT stdid FROM dbo.ServiceStandard WHERE 1=0"))  # simple test query
-            logging.info("Database connection successful.")
-    except Exception as e:
-        logging.error(f"Database connection failed: {e}")
-        raise
+    # Test db connection on startup, with retry logic as the db may not be ready yet
+    max_retries = 3
+    retry_delay = 1  # Start with 1 second delay
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Create a fresh connection each time
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))  # Simple test query that doesn't depend on table existence
+                logging.info(f"Database connection successful on attempt {attempt}.")
+                break  # Success, exit the retry loop
+        except Exception as e:
+            logging.warning(f"Connection attempt {attempt} failed: {e}")
+            if attempt == max_retries:
+                logging.error(f"All {max_retries} connection attempts failed.")
+                raise  # Re-raise the exception after all retries fail
+            
+            # Exponential backoff: wait longer after each failure
+            wait_time = retry_delay * (2 ** (attempt - 1))
+            logging.info(f"Retrying in {wait_time} seconds...")
+            time.sleep(wait_time)
 
     return engine
 
