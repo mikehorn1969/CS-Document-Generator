@@ -33,7 +33,9 @@ def getC7Company(company_id):
     # Extract desired fields
     # companyname, address
     RawAddress = (response_json.get("AddressLine1") or "") + ", " + (response_json.get("AddressLine2") or "") + ", " + (response_json.get("AddressLine3") or "") + ", " + (response_json.get("City") or "") + ", " + (response_json.get("Postcode") or "")
-    CompanyAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
+    # Clean up address by removing empty elements and fixing comma issues
+    address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
+    CompanyAddress = ", ".join(address_parts)
 
     result = {
         "CompanyName": response_json.get("CompanyName"),
@@ -65,7 +67,9 @@ def getC7Contact(contact_id):
 
     ContactName = (response_json.get("forenames") or "") + " " + (response_json.get("surname") or "")
     RawAddress = (response_json.get("AddressLine1") or "") + ", " + (response_json.get("AddressLine2") or "") + ", " + (response_json.get("AddressLine3") or "") + ", " + (response_json.get("City") or "") + ", " + (response_json.get("Postcode") or "")
-    ContactAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
+    # Clean up address by removing empty elements and fixing comma issues
+    address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
+    ContactAddress = ", ".join(address_parts)
 
     result = {
         "CompanyName": (response_json.get("CompanyName")),
@@ -125,7 +129,9 @@ def loadC7ContactData():
         ContactName = (Forenames or "") + " " + (Surname  or "")
         RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (Addressline3 or "") + ", " + (City or "") + ", " + (Postcode or "")
         
-        ContactAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
+        # Clean up address by removing empty elements and fixing comma issues
+        address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
+        ContactAddress = ", ".join(address_parts)    # strip extra commas where an address field was empty
         new_contact = Contact(CompanyName, ContactName, ContactAddress, EmailAddress, TelephoneNumber, Title)
 
         contacts.append({
@@ -191,7 +197,9 @@ def loadC7Clients():
             CompanyAddress, Jurisdiction = getCHbasics(CompanyName, RegistrationNumber)
         else:
             RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (AddressLine3 or "") + ", " + (City or "") + ", " + (Postcode or "")
-            CompanyAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
+            # Clean up address by removing empty elements and fixing comma issues
+            address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
+            CompanyAddress = ", ".join(address_parts)    # strip extra commas where an address field was empty
 
         # create a new Company instance
         new_company = Company(CompanyId, CompanyName, CompanyAddress, CompanyEmail, TelephoneNumber, RegistrationNumber, Jurisdiction) 
@@ -242,7 +250,9 @@ def getContactsByCompany(CompanyName):
         ContactName = (Forenames or "") + " " + (Surname  or "")
         RawAddress = (AddressLine1 or "") + ", " + (AddressLine2 or "") + ", " + (Addressline3 or "") + ", " + (City or "") + ", " + (Postcode or "")
         
-        ContactAddress = re.sub(r',+', ',', RawAddress)    # strip extra commas where an address field was empty
+        # Clean up address by removing empty elements and fixing comma issues
+        address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
+        ContactAddress = ", ".join(address_parts)    # strip extra commas where an address field was empty
         new_contact = Contact(CompanyName, ContactName, ContactAddress, EmailAddress, TelephoneNumber, JobTitle)
 
         contacts.append({
@@ -383,6 +393,7 @@ def getC7contract(candidate_id):
     candidate_surname= ""
     candidate_name= ""
     candidate_jurisdiction= ""
+    candidate_reg_address= ""
     service_id= ""
     job_title= ""
     company_name= ""
@@ -424,8 +435,9 @@ def getC7contract(candidate_id):
     candidate_phone = candidate_record.get('phone', '')
     candidate_email = candidate_record.get('email', '')
     candidate_reg_number = candidate_record.get('registration_number', '')
-    candidate_ltd_name = candidate_record.get('ltd_name', '')
-    candidate_address = candidate_record.get('address', '')
+    candidate_ltd_name = candidate_record.get('ltd_name', '')   
+    candidate_address = candidate_record.get('address', '') 
+    candidate_reg_address = candidate_record.get('candidateregaddress', '')
     candidate_jurisdiction = candidate_record.get('jurisdiction', '')   
 
     candidate_fullname = candidate_record.get('name', '')
@@ -532,13 +544,15 @@ def getC7contract(candidate_id):
                         company_address = ""
                         if (company_name and company_number):
                             company_address, company_jurisdiction = getCHbasics(company_name, company_number)
+                            if company_jurisdiction == "england-wales":
+                                company_jurisdiction = "England and Wales"
                         else:
                             RawAddress = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
                             # Clean up: remove repeated commas and any surrounding whitespace
                             company_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
                             company_address = re.sub(r',+', ',', company_address)       # collapse multiple commas into one
                             company_address = company_address.strip(', ').strip()       # final tidy-up
-                            company_jurisdiction = "england-wales"
+                            company_jurisdiction = "England and Wales"
                                                 
                     # get company contact data
                     contactId = requirement.get('contactId', '')
@@ -568,6 +582,7 @@ def getC7contract(candidate_id):
                 "candidateemail": candidate_email,   
                 "candidateltdregno": candidate_reg_number,
                 "candidateltdname": candidate_ltd_name,
+                "candidateregaddress": candidate_reg_address,
                 "candidatesurname": candidate_surname,
                 "candidateName": candidate_name,
                 "candidatejurisdiction": candidate_jurisdiction,
@@ -688,6 +703,7 @@ def gather_data(session_contract):
         contract['candidateltdname'] = c7contractdata.get("candidateltdname", "")
         contract['candidateltdregno'] = c7contractdata.get("candidateltdregno", "")
         contract['candidatejurisdiction'] = c7contractdata.get("candidatejurisdiction", "")
+        contract['candidateregaddress'] = c7contractdata.get("candidateregaddress", "")
         contract['description'] = c7contractdata.get("description", "")
         contract['companyid'] = c7contractdata.get("companyid", 0)
         contract['contactid'] = c7contractdata.get("contactid", 0)  
@@ -744,6 +760,7 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
     candidate_ltd_name = ""
     candidate_jurisdiction = ""
     candidate_address = ""
+    candidate_reg_address = ""
 
     cfg = load_config()
 
@@ -766,7 +783,13 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
             candidate_phone = candidate_data.get('MobileNumber', '')
             candidate_email = candidate_data.get('EmailAddress', '')
             candidate_surname = candidate_data.get('Surname', '')
-
+            RawAddress = (candidate_data.get("AddressLine1") or "") + ", " + (candidate_data.get("AddressLine2") or "") + ", " + \
+                         (candidate_data.get("AddressLine3") or "") + ", " + (candidate_data.get("City") or "") + ", " + \
+                         (candidate_data.get("County") or "") + ", " + (candidate_data.get("Postcode") or "")
+            # Clean up address by removing empty elements and fixing comma issues
+            address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
+            candidate_address = ", ".join(address_parts)
+            
             # Find the value for CompanyRegistrationNumber
             candidate_reg_number = next(
                 (field["Value"] for field in candidate_data["CustomFields"] if field["Name"] == "CompanyRegistrationNumber"),
@@ -780,19 +803,22 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
             # for candiate-specific calls, search Companies House API using name and company number
             # populate registered address when a match is found
             if search_term is None and (candidate_ltd_name and candidate_reg_number):
-                candidate_address, candidate_jurisdiction = getCHbasics(candidate_ltd_name.strip(), candidate_reg_number.strip())
-            else:                    
-                candidate_jurisdiction = "england-wales"
+                candidate_reg_address, candidate_jurisdiction = getCHbasics(candidate_ltd_name.strip(), candidate_reg_number.strip())
+                if candidate_jurisdiction == "england-wales":
+                    candidate_jurisdiction = "England and Wales"
+            else:
+                candidate_jurisdiction = "England and Wales"
 
     return {
         "candidateId": candidate_id,
         "name": candidate_name,
         "phone": candidate_phone,
         "email": candidate_email,
+        "address": candidate_address,
         "surname": candidate_surname,
         "registration_number": candidate_reg_number,
         "ltd_name": candidate_ltd_name,
-        "address": candidate_address,
+        "candidateregaddress": candidate_reg_address,
         "jurisdiction": candidate_jurisdiction
     }
 

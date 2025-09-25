@@ -14,7 +14,7 @@
     
     <!-- Left Column: Inputs and Buttons -->
     <div>           
-        <form action="/savecolleaguedata" method="post">
+        <form action="/validateC7" method="post">
             <input type="submit" value="Validate" name="btSave" class="button"/>            
             <a href="{{ url_for('views.index') }}" class="button">Back</a>
         </form>            
@@ -37,6 +37,7 @@ Candidate Phone: {{ contractdata['candidatephone'] }}
 Candidate Ltd Company Name: {{ contractdata['candidateltdname'] }}
 Candidate Ltd Company Registration Number: {{ contractdata['candidateltdregno'] }}
 Candidate Ltd Company Legal Jurisdiction: {{ contractdata['candidatejurisdiction'] }}
+Candidate Ltd Company Registered Address: {{ contractdata['candidateregaddress'] }}
 
 Client Name: {{ contractdata['companyname'] }}
 Client Address: {{ contractdata['companyaddress'] }}

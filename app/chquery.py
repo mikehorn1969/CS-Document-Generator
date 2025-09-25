@@ -64,11 +64,12 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
     
     # --- config --------------------------------------------------------------
     subscription_key = os.environ.get("CH_KEY", None)
-    if not subscription_key:
-        cfg = load_config()
-        subscription_key = cfg["CH_KEY"]
     nameapi_key = os.environ.get("NAMEAPI_KEY", None)
-
+    if not subscription_key or not nameapi_key:
+        cfg = load_config()
+        subscription_key = cfg["CH_KEY"]    
+        nameapi_key = cfg["NAMEAPI_KEY"]
+ 
     # --- helpers -------------------------------------------------------------
     def make_result(*, valid: bool, narrative: str = "", is_director: bool = False,
                     jurisdiction: Optional[str] = None, status: Optional[str] = None) -> Dict[str, Any]:
