@@ -441,7 +441,7 @@ def download_client_contract():
     final_output.seek(0)
     
     # Upload to SharePoint
-    target_url = "Uploads"
+    target_url = "Review"
     download_name=f"{sid} Client Statement of Service CSOS.xlsx"
 
     file_bytes = final_output.getvalue()
@@ -557,7 +557,7 @@ def download_sp_msa():
     final_output.seek(0)
 
     # Upload to SharePoint
-    target_url = "Uploads"
+    target_url = "Docusign"
     download_name=f"{contract.get('candidateltdname')} Service Provider MSA SMSA.xlsx"
 
     file_bytes = final_output.getvalue()
@@ -628,7 +628,7 @@ def download_client_msa():
 
     # Tech debt: hard coded contract type
     row["ContractType"] = "Flex"
-    
+
     data_rows.append(row)
 
     # Create DataFrame
@@ -661,7 +661,7 @@ def download_client_msa():
     
     # Upload to SharePoint
 
-    target_url = "Uploads"
+    target_url = "Docusign"
     download_name=f"{contract.get('companyname')} Client MSA CMSA.xlsx"
 
     file_bytes = final_output.getvalue()
@@ -960,7 +960,7 @@ def download_sp_nda():
     final_output.seek(0)
 
     # Upload to SharePoint
-    target_url = "Uploads"
+    target_url = "Docusign"
     download_name=f"{contract.get('candidateltdname')} Service Provider NDA SNDA.xlsx"
 
     file_bytes = final_output.getvalue()
@@ -1132,7 +1132,7 @@ def download_sp_contract():
     final_output.seek(0)
     
         # Upload to SharePoint
-    target_url = "Uploads"
+    target_url = "Review"
     download_name=f"{service_id} Service Provider Statement of Service SSOS.xlsx"
 
     file_bytes = final_output.getvalue()

@@ -152,7 +152,7 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
 
     site_name = os.getenv('SP_SITE_NAME', 'InternalTeam')
     site_domain = os.getenv('SP_SITE_DOMAIN', 'jjag.sharepoint.com')
-    library = os.getenv('SP_LIBRARY', 'Mike')     
+    library = os.getenv('SP_LIBRARY', 'DocGen uploads')     
     folder_path = target_url
     file_name = filename
 
