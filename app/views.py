@@ -5,8 +5,9 @@ from app import db
 from flask import render_template, request, redirect, url_for, session, send_file, flash, jsonify
 from flask import Blueprint
 
-from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany, gather_data, getC7Candidate, loadServiceStandards, loadServiceArrangements, getC7Candidates
+from app.models import ServiceStandard, ServiceArrangement, ServiceContract
+from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany, gather_data,\
+    getC7Candidate, loadServiceStandards, loadServiceArrangements, getC7Candidates, getC7Contact
 from app.chquery import validateCH, searchCH
 from app.classes import Company, Config
 from app.helper import formatName, uploadToSharePoint
@@ -131,6 +132,7 @@ def set_servicestandards():
     if which == "SP Standards":        
         session_contract = session.get('sessionContract', {})
         service_id = session_contract.get("sid", "")
+        context = session_contract.get("context", "")
         if service_id is None or service_id == "":
             flash("Select a Service Provider with a Service ID before continuing.", "error")
             return redirect(url_for('views.index'))
@@ -148,6 +150,15 @@ def set_servicestandards():
         else:
             # No contract data needed for CS Standards
             contract = {"sid": service_id}
+
+        standards = loadServiceStandards(service_id) 
+
+        if which == "SP Standards":
+            contract_record = db.session.scalar(
+                select(ServiceContract).where(ServiceContract.sid == service_id)
+            )
+            if contract_record:
+                contract['context'] = contract_record.context or ''
 
     elif request.method == 'POST':
 
@@ -186,9 +197,30 @@ def set_servicestandards():
             for stdid, ssn, desc in standards
         ]
 
+        if which == "SP Standards":
+            # Persist to session contract for later exports
+            contract = session.get('sessionContract', {})     
+            context = request.form.get('context','').strip()
+            contract['context'] = context
+            session['sessionContract'] = contract
+            # Special conditions (stored on the contract record if present)
+            raw = request.form.get('context')
+            specialconditions = raw.strip() if isinstance(raw, str) else ''
+
+            contract_record = db.session.scalar(
+                select(ServiceContract).where(ServiceContract.sid == service_id)
+            )
+            if not contract_record:
+                contract_record = ServiceContract(sid=service_id, context=context)
+                db.session.add(contract_record)
+            else:
+                contract_record.context = context
+
+            # Commit all changes once
+            db.session.commit()
+
     # (re)load for display 
-    standards = loadServiceStandards(service_id) 
-    return render_template('standards.html', serviceid=service_id, standards=standards, which=which)
+    return render_template('standards.html', contract=contract, standards=standards, which=which)
 
 
 @views_bp.route('/delete/<int:stdid>', methods=['POST'])
@@ -268,10 +300,10 @@ def manage_servicearrangements():
         specialconditions = raw.strip() if isinstance(raw, str) else ''
 
         contract_record = db.session.scalar(
-            select(ContractModel).where(ContractModel.sid == service_id)
+            select(ServiceContract).where(ServiceContract.sid == service_id)
         )
         if not contract_record:
-            contract_record = ContractModel(sid=service_id, specialconditions=specialconditions)
+            contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions)
             db.session.add(contract_record)
         else:
             contract_record.specialconditions = specialconditions
@@ -290,7 +322,7 @@ def manage_servicearrangements():
         for row in arr_list
     }
     contract_record = db.session.scalar(
-        select(ContractModel).where(ContractModel.sid == service_id)
+        select(ServiceContract).where(ServiceContract.sid == service_id)
     )
     if contract_record:
         contract['specialconditions'] = contract_record.specialconditions or ''
@@ -351,7 +383,22 @@ def download_client_contract():
     contract = session.get('sessionContract', {})    
     sid = contract.get("sid", "")
     
-    # Ensure service standards and arrangements are loaded
+    # Ensure contact details are loaded
+    contact_id = contract.get("contactid", 0)
+    if contact_id == 0:
+        contact_id = request.form.get('contactId',0)
+        contact = getC7Contact(contact_id)
+        contract['contactid'] = contact_id
+        contract['contactemail'] = contact.get("email", "")
+        contract['contactphone'] = contact.get("phone", "") 
+        contract['contacttitle'] = contact.get("jobtitle", "")
+        contract['contactaddress'] = contact.get("address", "")
+        contact_name = formatName(f"{contact.get('firstname', '')},{contact.get('lastname', '')}")
+        contract["contactname"] = contact_name
+        # Persist back to session
+        session['sessionContract'] = contract
+
+    # Ensure service standards and arrangements are loaded 
     service_standards = session.get('serviceStandards', loadServiceStandards(sid))    
     arrangements = session.get('serviceArrangements', loadServiceArrangements(sid))
     
@@ -359,9 +406,10 @@ def download_client_contract():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
         
-    contract_record = db.session.scalar(select(ContractModel).where(ContractModel.sid == sid))
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
     special_conditions = contract_record.specialconditions if contract_record else ''
-    
+    context = contract_record.context if contract_record else ''
+
     # Build rows
     data_rows = []
     row = {}
@@ -398,6 +446,7 @@ def download_client_contract():
         row[column_name] = field
 
     row["SpecialConditions"] = special_conditions
+    row["Context"] = context
 
     std_fields = ["ssn", "description"]
     std_export_columns = ["SSN", "SSDescription"]
@@ -500,7 +549,7 @@ def download_client_renewal():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
         
-    contract_record = db.session.scalar(select(ContractModel).where(ContractModel.sid == sid))
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
     special_conditions = contract_record.specialconditions if contract_record else ''
     
     # Build rows
@@ -1206,7 +1255,7 @@ def download_sp_contract():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    contract_record = db.session.scalar(select(ContractModel).where(ContractModel.sid == service_id))
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
     special_conditions = contract_record.specialconditions if contract_record else ''
 
     # Build rows
@@ -1357,7 +1406,7 @@ def download_sp_renewal():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    contract_record = db.session.scalar(select(ContractModel).where(ContractModel.sid == service_id))
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
     special_conditions = contract_record.specialconditions if contract_record else ''
 
     # Build rows
