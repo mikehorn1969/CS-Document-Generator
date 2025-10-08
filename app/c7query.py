@@ -5,7 +5,7 @@ from app import db
 from app.classes import Company, Contact, Config, Requirement, Candidate, C7User
 from app.helper import load_config, formatName, debugMode
 import re
-from datetime import datetime
+from datetime import date, datetime
 from app.chquery import searchCH, getCHbasics 
 from dateutil.relativedelta import relativedelta 
 from typing import Optional
@@ -464,7 +464,15 @@ def getC7contract(candidate_id):
             # 0 = none CS placement, skip these
             if experience_placement_id == 0:
                 continue
-            
+
+            # Start date and End date will be today or in the future, skip anything earlier    
+            start_date = datetime.strptime(experience.get('placementStartDate', ''), "%Y-%m-%d %H:%M:%S.%f").date()
+            end_date = datetime.strptime(experience.get('placementEndDate', ''), "%Y-%m-%d %H:%M:%S.%f").date()
+            if (start_date < date.today()) and (end_date < date.today()):
+                continue
+
+            print(f"DEBUG: Placement ID: {experience_placement_id}")
+
             job_title = experience.get('placementJobTitle', '')
             company_name = experience.get('placementCompanyName', '')
             placedby = experience.get('placementPlacedBy', '')
@@ -489,7 +497,8 @@ def getC7contract(candidate_id):
                             break
 
             # find requirements that match company & job title
-            requirement_url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&JobTitle={job_title}"
+            #requirement_url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&JobTitle={job_title}"
+            requirement_url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}"
             requirements = requests.get(requirement_url, headers=hdr)
 
             # move to next experience if requirement not found

@@ -8,53 +8,11 @@ import paramiko
 import time
 from typing import Optional, Dict
 from sqlalchemy.exc import OperationalError
-
-# local .env support
+from app.keyvault import get_secret, get_kv_client
 from dotenv import load_dotenv
-load_dotenv()
-
-# Azure Key Vault (optional fallback if env var missing)
 from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
-from msal import ConfidentialClientApplication
 
-# -----------------------------
-# Internal helpers
-# -----------------------------
-def _get_kv_client() -> Optional[SecretClient]:
-    """Return a SecretClient if KEY_VAULT_NAME is configured, else None."""
-    kv_name = os.environ.get("KEY_VAULT_NAME")
-    if not kv_name:
-        return None
-    vault_uri = f"https://{kv_name}.vault.azure.net"
-    credential = DefaultAzureCredential()
-    return SecretClient(vault_url=vault_uri, credential=credential)
-
-
-def _get_secret(env_name: str, kv_secret_name: Optional[str] = None) -> str:
-    """
-    Fetch a secret from environment, or (if not set) from Azure Key Vault.
-    kv_secret_name defaults to env_name if not supplied.
-    """
-    val = os.environ.get(env_name)
-    if val:
-        return val
-
-    client = _get_kv_client()
-    if not client:
-        raise KeyError(
-            f"Required secret '{env_name}' not set and KEY_VAULT_NAME is not configured."
-        )
-
-    secret_name = kv_secret_name or env_name
-    try:
-        result = client.get_secret(secret_name).value 
-        return result if result is not None else ""
-    except Exception as exc:
-        raise KeyError(
-            f"Failed to retrieve '{secret_name}' from Azure Key Vault."
-        ) from exc
-
+load_dotenv()
 
 # -----------------------------
 # Public configuration loaders
@@ -66,17 +24,17 @@ def load_config() -> dict[str, str | dict]:
     Returns a plain dict; nothing is cached globally.
     """
     # C7 / CH / NameAPI
-    c7_key = _get_secret("C7_KEY", "C7APIKey")
-    c7_userid = _get_secret("C7_USERID", "C7USERID")
-    ch_key = _get_secret("CH_KEY", "CHKEY")
-    sql_username = _get_secret("SQL-USERNAME", "SQL-USERNAME")
-    sql_password = _get_secret("SQL-PASSWORD", "SQL-PASSWORD")
+    c7_key = get_secret("C7_KEY", "C7APIKey")
+    c7_userid = get_secret("C7_USERID", "C7USERID")
+    ch_key = get_secret("CH_KEY", "CHKEY")
+    sql_username = get_secret("SQL-USERNAME", "SQL-USERNAME")
+    sql_password = get_secret("SQL-PASSWORD", "SQL-PASSWORD")
 
     # NameAPI can arrive split; support both patterns.
     nameapi_key = os.environ.get("NAMEAPI_KEY")
     if not nameapi_key:
-        prefix = _get_secret("NAMEAPI_KEYPREFIX", "NAMEAPI-KEYPREFIX")
-        suffix = _get_secret("NAMEAPI_KEYSUFFIX", "NAMEAPI-KEYSUFFIX")
+        prefix = get_secret("NAMEAPI_KEYPREFIX", "NAMEAPI-KEYPREFIX")
+        suffix = get_secret("NAMEAPI_KEYSUFFIX", "NAMEAPI-KEYSUFFIX")
         nameapi_key = f"{prefix}-{suffix}"
 
     c7_hdr = {
@@ -101,9 +59,9 @@ def load_azure_app_identity() -> Dict[str, str]:
     These should normally be provided by the platform as env vars.
     """
     return {
-        "AZURE_CLIENT_ID": _get_secret("AZURE_CLIENT_ID"),
-        "AZURE_TENANT_ID": _get_secret("AZURE_TENANT_ID"),
-        "AZURE_CLIENT_SECRET": _get_secret("AZURE_CLIENT_SECRET"),
+        "AZURE_CLIENT_ID": get_secret("AZURE_CLIENT_ID"),
+        "AZURE_TENANT_ID": get_secret("AZURE_TENANT_ID"),
+        "AZURE_CLIENT_SECRET": get_secret("AZURE_CLIENT_SECRET"),
     }
 
 
@@ -126,8 +84,8 @@ def synonymsOf(word: str):
     Fetch synonyms for names from the Stands4 API.
     Requires STANDS4_USERID and STANDS4_TOKEN.
     """
-    userid = _get_secret("STANDS4_USERID")
-    token = _get_secret("STANDS4_TOKEN")
+    userid = get_secret("STANDS4_USERID")
+    token = get_secret("STANDS4_TOKEN")
 
     api_url = (
         "https://api.stands4.com/v1/synonyms"
@@ -193,9 +151,9 @@ def load_ssh_private_key() -> paramiko.PKey:
     passphrase = os.environ.get("SSH_KEY_PASSPHRASE")
 
     if pem_text is None:
-        pem_secret_name = _get_secret("SSH_PEM_SECRET_NAME")
+        pem_secret_name = get_secret("SSH_PEM_SECRET_NAME")
         passphrase_secret_name = os.environ.get("SSH_PASSPHRASE_SECRET")  # optional
-        client = _get_kv_client()
+        client = get_kv_client()
         if not client:
             raise KeyError(
                 "SSH_PEM not set and no Key Vault configured to fetch SSH key."

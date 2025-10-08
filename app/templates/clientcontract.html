@@ -59,10 +59,10 @@
         </div>
     </div>
     <div>
-        <label for="Rate" class="index-label"><strong>Rate</strong></label>
+        <label for="Rate £" class="index-label"><strong>Rate</strong></label>
         <div>
-            <input type="text" name="Rate" placeholder="Enter Rate" \
-                value="£{{ contract['charges'] if contract and contract.get('charges') else '' }}" required>    
+            <input type="number" step="0.01" name="Rate" placeholder="Enter Rate" \
+                value="{{ contract['charges'] if contract and contract.get('charges') else '' }}" required>    
         </div>
     </div>
     <input type="submit" class="button" id="submit-btn" value="Submit">
