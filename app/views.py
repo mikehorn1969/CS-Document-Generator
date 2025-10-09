@@ -579,9 +579,8 @@ def download_client_renewal():
             tmp_field = contract.get(raw_field,"")
             if tmp_field.strip().lower() == "england-wales":
                 field = "England and Wales"
-        else:
-            field = contract.get(raw_field, '')
-        field = contract.get(raw_field, '')
+            else:
+                field = contract.get(raw_field, '')
         # Tech debt: hard coded AD details        
         if (raw_field == "dmphone" ):
             field = "01379 871144"    
