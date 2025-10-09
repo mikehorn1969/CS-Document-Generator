@@ -1247,9 +1247,11 @@ def download_sp_contract():
     cs_standards = loadServiceStandards("CS") or []
 
     # Ensure service standards and arrangements are loaded
-    service_standards = session.get('serviceStandards', loadServiceStandards(service_id))
-    arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))
-        
+    service_standards = session.get('serviceStandards')
+    if not service_standards:
+        service_standards = loadServiceStandards(service_id)
+
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))        
     agreement_date = request.form.get('AgreementDate', '')
     
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()

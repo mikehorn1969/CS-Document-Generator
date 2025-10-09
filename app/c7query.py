@@ -858,7 +858,9 @@ def loadServiceStandards(service_id):
         print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: Fetching standards for Service ID {service_id}")
         
     if not service_id:                
-        return
+        if debugMode():
+            print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: No Service ID provided")
+        return []
     
     stmt = select(ServiceStandard).where(ServiceStandard.sid == service_id)
     standards = db.session.execute(stmt).scalars().all()
