@@ -10,7 +10,7 @@ from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany,
     getC7Candidate, loadServiceStandards, loadServiceArrangements, getC7Candidates, getC7Contact
 from app.chquery import validateCH, searchCH
 from app.classes import Company, Config
-from app.helper import formatName, uploadToSharePoint
+from app.helper import formatName, uploadToSharePoint, serve_docx, downloadFromSharePoint
 from datetime import datetime
 from sqlalchemy import select
 import pandas as pd
@@ -817,6 +817,19 @@ def download_client_msa():
         f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
         f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
+
+    if "btPreview" in request.form:
+        target_folder = "Templates/Business templates/Service Provider Templates"
+        target_file = "Client MSA - AUTOMATED MASTER.docx"
+        
+        file_bytes = downloadFromSharePoint(target_folder, target_file)
+        
+        if not file_bytes:
+            flash("Failed to download Client MSA template from SharePoint.", "error")
+            return redirect(url_for('views.index'))
+        
+        return serve_docx(file_bytes, "Client MSA - AUTOMATED MASTER.docx")
+        
     # Build rows
     data_rows = []
     row = {}

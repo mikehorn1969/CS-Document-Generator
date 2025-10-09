@@ -29,7 +29,8 @@
                 <input type='hidden' name='clientId' id="clientId" value="{{ contract['companyid'] if contract and contract.get('companyid') else '' }}">
             </div>
             <div>
-                <input type="submit" name="btSumbit" class="button" id="submit-btn" value="Submit" required>
+                <input type="submit" name="btPreview" id="preview-btn" class="button" value="Preview Document">
+                <input type="submit" name="btSubmit" class="button" id="submit-btn" value="Submit" required>
                 <a href="{{ url_for('views.index') }}" class="button">Back</a>
             </div>
         

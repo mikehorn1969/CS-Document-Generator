@@ -9,6 +9,12 @@ import time
 from typing import Optional, Dict
 from sqlalchemy.exc import OperationalError
 from app.keyvault import get_secret, get_kv_client
+from docx import Document
+from flask import send_file
+from datetime import datetime
+import tempfile
+
+# local .env support
 from dotenv import load_dotenv
 from azure.identity import DefaultAzureCredential
 
@@ -110,7 +116,7 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
 
     site_name = os.getenv('SP_SITE_NAME', 'InternalTeam')
     site_domain = os.getenv('SP_SITE_DOMAIN', 'jjag.sharepoint.com')
-    library = os.getenv('SP_LIBRARY', 'DocGen uploads')     
+    library = os.getenv('SP_UPLOAD_LIB', 'DocGen uploads')     
     folder_path = target_url
     file_name = filename
 
@@ -134,6 +140,44 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
     }, data=file_bytes)
 
     return upload_response.status_code
+
+
+def downloadFromSharePoint(folder_path: str, filename: str) -> Optional[bytes]:
+    """
+    Download a file from SharePoint using Microsoft Graph API and managed identity.
+    Returns the file bytes if successful, else None.
+    """
+    credential = DefaultAzureCredential()
+    token = credential.get_token("https://graph.microsoft.com/.default")
+    access_token = token.token
+
+    site_name = os.getenv('SP_SITE_NAME', 'InternalTeam')
+    site_domain = os.getenv('SP_SITE_DOMAIN', 'jjag.sharepoint.com')
+    library = os.getenv('SP_DOWNLOAD_LIB', 'Common')
+
+    # Get Site ID
+    site_url = f'https://graph.microsoft.com/v1.0/sites/{site_domain}:/sites/{site_name}'
+    site_response = requests.get(site_url, headers={'Authorization': f'Bearer {access_token}'})
+
+    if site_response.status_code != 200:
+        print(f"Error getting site ID: {site_response.status_code} - {site_response.text}")
+        return None
+
+    site_id = site_response.json()['id']
+
+    # Download file
+    download_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{library}/{folder_path}/{filename}'
+    print(f"Downloading from URL: {download_url}")
+
+    download_response = requests.get(download_url, headers={
+        'Authorization': f'Bearer {access_token}'
+    })
+
+    if download_response.status_code == 200:
+        return download_response.content
+    else:
+        print(f"Error downloading file: {download_response.status_code} - {download_response.text}")
+        return None
 
 
 # -----------------------------
@@ -224,3 +268,54 @@ def wait_for_db(max_wait=120, interval=5):
 def debugMode():
     config_mode = os.environ.get('FLASK_CONFIG', 'DevelopmentConfig')
     return config_mode == 'DevelopmentConfig'
+
+
+def serve_docx(file_bytes: bytes, filename: str):
+    """
+    Open a docx from bytes, replace placeholders, and serve to user
+    """
+    # Create temp file and keep it open
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
+    try:
+        # Write bytes to temp file
+        tmp.write(file_bytes)
+        tmp.flush()  # Ensure all data is written
+        tmp.close()  # Close but don't delete yet
+
+        # Open and modify the document
+        doc = Document(tmp.name)
+        today_str = datetime.today().strftime('%d %B %Y')
+
+        # Replace {{AgreementDate}} in all paragraphs
+        for para in doc.paragraphs:
+            if "{{AgreementDate}}" in para.text:
+                para.text = para.text.replace("{{AgreementDate}}", today_str)
+
+        # Also replace in tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if "{{AgreementDate}}" in cell.text:
+                        cell.text = cell.text.replace("{{AgreementDate}}", today_str)
+
+        # Create new temp file for modified document
+        output = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
+        doc.save(output.name)
+        output.close()
+
+        # Send file to user
+        return send_file(
+            output.name,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+
+    finally:
+        # Clean up temp files
+        import os
+        try:
+            os.unlink(tmp.name)
+            os.unlink(output.name)
+        except:
+            pass  # Ignore cleanup errors
