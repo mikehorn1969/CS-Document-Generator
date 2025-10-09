@@ -558,7 +558,7 @@ def download_client_renewal():
     row['AgreementDate'] = f_agreement_date
 
     # Populate row with contract fields
-    # making any neccessary substituions
+    # making any necessary substitutions
     fields = ["companyname", "companyaddress", "companyjurisdiction", "companyregistrationnumber", 
               "sid", "servicename", "charges", 
               "contactname", "contacttitle", "contactemail", "contactphone", "contactaddress", 
