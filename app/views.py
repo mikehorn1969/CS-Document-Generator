@@ -1471,7 +1471,7 @@ def download_sp_renewal():
     # Flatten service standards
     for i in range(cs_count,20):
 
-        i_active = i - cs_count + 1
+        i_active = i - cs_count
         # add the standard fields
         if i_active < len(service_standards):
             standard = service_standards[i_active]        
