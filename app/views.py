@@ -566,7 +566,7 @@ def download_client_renewal():
               "noticeperiod", "noticeperiod_unit",
               "dmname", "dmtitle", "dmemail", "dmphone"]
 
-    export_columns = ["ClientName", "ClientAddress", "Jursidiction", "ClientCompanyNo",                       
+    export_columns = ["ClientName", "ClientAddress", "Jurisdiction", "ClientCompanyNo",                       
                       "ServiceID", "ServiceName", "ClientCharge", 
                       "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
                       "ServiceStart", "ServiceEnd", "Duration", 
