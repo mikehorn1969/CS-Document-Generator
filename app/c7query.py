@@ -471,7 +471,7 @@ def getC7contract(candidate_id):
 
             # Start date will be today or in the future, skip anything earlier    
             start_date = datetime.strptime(experience.get('placementStartDate', ''), "%Y-%m-%d %H:%M:%S.%f").date()            
-            if (start_date < date.today()):
+            if start_date < date.today():
                 continue
 
             contactId = experience.get('contactId', 0)
