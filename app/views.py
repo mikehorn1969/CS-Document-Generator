@@ -1436,7 +1436,7 @@ def download_sp_renewal():
               "startdate", "enddate", "duration", "noticeperiod", "noticeperiod_unit",
               "dmname", "dmtitle", "dmemail", "dmphone"]
 
-    export_columns = ["ClientName", "ClientAddress", "Jursidiction", "ClientCompanyNo",                       
+    export_columns = ["ClientName", "ClientAddress", "Jurisdiction", "ClientCompanyNo",                       
                       "ServiceID", "ServiceName", "Fees", 
                       "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
                       "ServiceStart", "ServiceEnd", "Duration", "NoticePeriod", "NoticeUOM",
