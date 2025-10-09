@@ -54,6 +54,7 @@ class ServiceContract(db.Model):
     conid = db.Column(Integer, Identity(start=1, increment=1), primary_key=True, name='conid')
     sid = db.Column(String(10))    
     specialconditions = db.Column(Text)
+    context = db.Column(Text)
 
 
 

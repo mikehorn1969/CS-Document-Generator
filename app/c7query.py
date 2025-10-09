@@ -5,7 +5,7 @@ from app import db
 from app.classes import Company, Contact, Config, Requirement, Candidate, C7User
 from app.helper import load_config, formatName, debugMode
 import re
-from datetime import datetime
+from datetime import date, datetime
 from app.chquery import searchCH, getCHbasics 
 from dateutil.relativedelta import relativedelta 
 from typing import Optional
@@ -51,6 +51,10 @@ def getC7Contact(contact_id):
     if debugMode():
         print(f"{datetime.now().strftime('%H:%M:%S')} getC7Contact: Fetching data for ContactId {contact_id}")
 
+    # bail early if no contact_id
+    if contact_id == 0:
+        return {}
+    
     cfg = load_config()
     user_id = cfg["C7_USERID"]
     hdr = cfg["C7_HDR"]
@@ -464,10 +468,90 @@ def getC7contract(candidate_id):
             # 0 = none CS placement, skip these
             if experience_placement_id == 0:
                 continue
+
+            # Start date will be today or in the future, skip anything earlier    
+            start_date = datetime.strptime(experience.get('placementStartDate', ''), "%Y-%m-%d %H:%M:%S.%f").date()            
+            if start_date < date.today():
+                continue
+
+            contactId = experience.get('contactId', 0)
+
+            print(f"DEBUG: Placement ID: {experience_placement_id}")
+            print(f"DEBUG: Start Date: {start_date}")
+            print(f"DEBUG: Contact ID: {contactId}")
             
+            # get company contact data                   
+            contact_url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contactId}"
+            contact_response = requests.get(contact_url, headers=hdr)
+            
+            if contact_response.status_code == 200:
+                contact_data = contact_response.json()
+                contact_name = (contact_data.get("FullName") or "")
+                contact_address = (contact_data.get("Address") or "")
+                contact_email = contact_data.get("EmailAddress", "")
+                contact_phone = contact_data.get("ContactNumber", "")
+                contact_title = contact_data.get("JobTitle", "")
+
             job_title = experience.get('placementJobTitle', '')
             company_name = experience.get('placementCompanyName', '')
             placedby = experience.get('placementPlacedBy', '')
+
+            # get company data
+            company_search_url = f"https://coll7openapi.azure-api.net/api/Company/Search?UserId={user_id}&CompanyName={company_name}"
+            company_result = requests.get(company_search_url, headers=hdr)
+            if company_result.status_code == 200:
+                companyId = company_result.json()[0]
+                company_url = f"https://coll7openapi.azure-api.net/api/Company/Get?UserId={user_id}&CompanyId={companyId}"
+                company_response = requests.get(company_url, headers=hdr)
+
+                if company_response.status_code == 200:
+                    company_data = company_response.json()                                
+                    
+                    company_email = company_data.get("CompanyEmail", "")
+                    company_phone = company_data.get("TelephoneNumber", "") 
+                    company_number = company_data.get("RegistrationNumber", "")
+
+                    # serch Companies House API using name and company number (fetch company number from CH if it's missing) 
+                    # populate registered address when a match is found
+                    if company_number == None:
+                        ch_result = searchCH(company_name)
+                        # break using flag once key is found
+                        foundit = False
+                        for key, value in ch_result.items():
+                            if key == "items":
+                                for item in value:
+                                    if ( item.get('title') == company_name.upper() ):
+                                        foundit = True
+                                        company_number = item.get('company_number')
+                                    if foundit:
+                                        break
+                            if foundit:
+                                break
+
+                    company_jurisdiction = ""
+                    company_address = ""
+                    if (company_name and company_number):
+                        company_address, company_jurisdiction = getCHbasics(company_name, company_number)
+                        if company_jurisdiction == "england-wales":
+                            company_jurisdiction = "England and Wales"
+                    else:
+                        RawAddress = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
+                        # Clean up: remove repeated commas and any surrounding whitespace
+                        company_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
+                        company_address = re.sub(r',+', ',', company_address)       # collapse multiple commas into one
+                        company_address = company_address.strip(', ').strip()       # final tidy-up
+                        company_jurisdiction = "England and Wales"
+                                            
+            # Ensure placement dates are in YYYY-MM-DD format
+            start_date = datetime.strptime(experience.get('placementStartDate', '')[:10], "%Y-%m-%d")
+            f_start_date = start_date.strftime("%d/%m/%Y")
+            end_date = datetime.strptime(experience.get('placementEndDate', '')[:10], "%Y-%m-%d")
+            f_end_date = end_date.strftime("%d/%m/%Y")
+            notice_period = experience.get('noticePeriod', 0)
+            notice_period_unit = experience.get('noticePeriodUOM', '')
+            fees = experience.get('placementPayRate', 0.0)
+            charges = experience.get('placementChargeRate', 0.0)
+            description = experience.get('jobTitle', '')
             payload = []
 
             if C7User.count() == 0:
@@ -487,92 +571,9 @@ def getC7contract(candidate_id):
                             foundit = True
                         if foundit:
                             break
-
-            # find requirements that match company & job title
-            requirement_url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&JobTitle={job_title}"
-            requirements = requests.get(requirement_url, headers=hdr)
-
-            # move to next experience if requirement not found
-            if requirements.status_code != 200:
-                continue
             
-            requirement_result = requirements.json()                    
-            
-            # loop through requirements that match company & job title
-            for requirement in requirement_result:
-                
-                # if the requirement most recent placement ID matches the experience placement id, then we have found our requirement
-                if requirement.get('MostRecentPlacementId', 0) == experience_placement_id:
-                
-                    notice_period = experience.get('noticePeriod', 0)
-                    notice_period_unit = experience.get('noticePeriodUOM', '')
-                    fees = experience.get('placementPayRate', 0.0)
-                    charges = experience.get('placementChargeRate', 0.0)
-                    description = requirement.get('JobTitleAndDescription', '')
-                    requirement_id = requirement.get('requirementId', 0)
-
-                    # get company data
-                    companyId = requirement.get('companyId', '')
-                    company_url = f"https://coll7openapi.azure-api.net/api/Company/Get?UserId={user_id}&CompanyId={companyId}"
-                    company_response = requests.get(company_url, headers=hdr)
-
-                    if company_response.status_code == 200:
-                        company_data = company_response.json()                                
-                        
-                        company_email = company_data.get("CompanyEmail", "")
-                        company_phone = company_data.get("TelephoneNumber", "") 
-                        company_number = company_data.get("RegistrationNumber", "")
-
-                        # serch Companies House API using name and company number (fetch company number from CH if it's missing) 
-                        # populate registered address when a match is found
-                        if company_number == None:
-                            ch_result = searchCH(company_name)
-                            # break using flag once key is found
-                            foundit = False
-                            for key, value in ch_result.items():
-                                if key == "items":
-                                    for item in value:
-                                        if ( item.get('title') == company_name.upper() ):
-                                            foundit = True
-                                            company_number = item.get('company_number')
-                                        if foundit:
-                                            break
-                                if foundit:
-                                    break
-
-                        company_jurisdiction = ""
-                        company_address = ""
-                        if (company_name and company_number):
-                            company_address, company_jurisdiction = getCHbasics(company_name, company_number)
-                            if company_jurisdiction == "england-wales":
-                                company_jurisdiction = "England and Wales"
-                        else:
-                            RawAddress = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
-                            # Clean up: remove repeated commas and any surrounding whitespace
-                            company_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
-                            company_address = re.sub(r',+', ',', company_address)       # collapse multiple commas into one
-                            company_address = company_address.strip(', ').strip()       # final tidy-up
-                            company_jurisdiction = "England and Wales"
-                                                
-                    # get company contact data
-                    contactId = requirement.get('contactId', '')
-                    contact_url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contactId}"
-                    contact_response = requests.get(contact_url, headers=hdr)
-                    
-                    if contact_response.status_code == 200:
-                        contact_data = contact_response.json()
-                        contact_name = (contact_data.get("FullName") or "")
-                        contact_address = (contact_data.get("Address") or "")
-                        contact_email = contact_data.get("EmailAddress", "")
-                        contact_phone = contact_data.get("ContactNumber", "")
-                        contact_title = contact_data.get("JobTitle", "")
-
-                    # Ensure placement dates are in YYYY-MM-DD format
-                    start_date = datetime.strptime(experience.get('placementStartDate', '')[:10], "%Y-%m-%d")
-                    f_start_date = start_date.strftime("%d/%m/%Y")
-                    end_date = datetime.strptime(experience.get('placementEndDate', '')[:10], "%Y-%m-%d")
-                    f_end_date = end_date.strftime("%d/%m/%Y")
-            
+            # break out of experience loop once we have processed the relevant placement
+            break
 
         # Return gathered data as JSON  
         # Technical Debt: currencies are hard coded    
@@ -617,7 +618,7 @@ def getC7contract(candidate_id):
                 "dmname": dm_name,
                 "dmtitle": dm_jobtitle,
                 "dmemail": dm_email,
-                "dmphone": dm_phone 
+                "dmphone": dm_phone
             }
 
 
@@ -806,9 +807,7 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
                 candidate_reg_address, candidate_jurisdiction = getCHbasics(candidate_ltd_name.strip(), candidate_reg_number.strip())
                 if candidate_jurisdiction == "england-wales":
                     candidate_jurisdiction = "England and Wales"
-            else:
-                candidate_jurisdiction = "England and Wales"
-
+            
     return {
         "candidateId": candidate_id,
         "name": candidate_name,
@@ -819,7 +818,7 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
         "registration_number": candidate_reg_number,
         "ltd_name": candidate_ltd_name,
         "candidateregaddress": candidate_reg_address,
-        "jurisdiction": candidate_jurisdiction
+        "jurisdiction": candidate_jurisdiction.capitalize()
     }
 
 
@@ -859,7 +858,9 @@ def loadServiceStandards(service_id):
         print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: Fetching standards for Service ID {service_id}")
         
     if not service_id:                
-        return
+        if debugMode():
+            print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: No Service ID provided")
+        return []
     
     stmt = select(ServiceStandard).where(ServiceStandard.sid == service_id)
     standards = db.session.execute(stmt).scalars().all()

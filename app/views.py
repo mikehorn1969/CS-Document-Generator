@@ -5,8 +5,9 @@ from app import db
 from flask import render_template, request, redirect, url_for, session, send_file, flash, jsonify
 from flask import Blueprint
 
-from app.models import ServiceStandard, ServiceArrangement, ServiceContract as ContractModel
-from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany, gather_data, getC7Candidate, loadServiceStandards, loadServiceArrangements, getC7Candidates
+from app.models import ServiceStandard, ServiceArrangement, ServiceContract
+from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany, gather_data,\
+    getC7Candidate, loadServiceStandards, loadServiceArrangements, getC7Candidates, getC7Contact
 from app.chquery import validateCH, searchCH
 from app.classes import Company, Config
 from app.helper import formatName, uploadToSharePoint, serve_docx, downloadFromSharePoint
@@ -131,6 +132,7 @@ def set_servicestandards():
     if which == "SP Standards":        
         session_contract = session.get('sessionContract', {})
         service_id = session_contract.get("sid", "")
+        context = session_contract.get("context", "")
         if service_id is None or service_id == "":
             flash("Select a Service Provider with a Service ID before continuing.", "error")
             return redirect(url_for('views.index'))
@@ -148,6 +150,15 @@ def set_servicestandards():
         else:
             # No contract data needed for CS Standards
             contract = {"sid": service_id}
+
+        standards = loadServiceStandards(service_id) 
+
+        if which == "SP Standards":
+            contract_record = db.session.scalar(
+                select(ServiceContract).where(ServiceContract.sid == service_id)
+            )
+            if contract_record:
+                contract['context'] = contract_record.context or ''
 
     elif request.method == 'POST':
 
@@ -186,9 +197,30 @@ def set_servicestandards():
             for stdid, ssn, desc in standards
         ]
 
+        if which == "SP Standards":
+            # Persist to session contract for later exports
+            contract = session.get('sessionContract', {})     
+            context = request.form.get('context','').strip()
+            contract['context'] = context
+            session['sessionContract'] = contract
+            # Special conditions (stored on the contract record if present)
+            raw = request.form.get('context')
+            specialconditions = raw.strip() if isinstance(raw, str) else ''
+
+            contract_record = db.session.scalar(
+                select(ServiceContract).where(ServiceContract.sid == service_id)
+            )
+            if not contract_record:
+                contract_record = ServiceContract(sid=service_id, context=context)
+                db.session.add(contract_record)
+            else:
+                contract_record.context = context
+
+            # Commit all changes once
+            db.session.commit()
+
     # (re)load for display 
-    standards = loadServiceStandards(service_id) 
-    return render_template('standards.html', serviceid=service_id, standards=standards, which=which)
+    return render_template('standards.html', contract=contract, standards=standards, which=which)
 
 
 @views_bp.route('/delete/<int:stdid>', methods=['POST'])
@@ -268,10 +300,10 @@ def manage_servicearrangements():
         specialconditions = raw.strip() if isinstance(raw, str) else ''
 
         contract_record = db.session.scalar(
-            select(ContractModel).where(ContractModel.sid == service_id)
+            select(ServiceContract).where(ServiceContract.sid == service_id)
         )
         if not contract_record:
-            contract_record = ContractModel(sid=service_id, specialconditions=specialconditions)
+            contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions)
             db.session.add(contract_record)
         else:
             contract_record.specialconditions = specialconditions
@@ -290,7 +322,7 @@ def manage_servicearrangements():
         for row in arr_list
     }
     contract_record = db.session.scalar(
-        select(ContractModel).where(ContractModel.sid == service_id)
+        select(ServiceContract).where(ServiceContract.sid == service_id)
     )
     if contract_record:
         contract['specialconditions'] = contract_record.specialconditions or ''
@@ -319,6 +351,28 @@ def prepare_client_contract():
     return render_template('clientcontract.html', contract=contract)
 
 
+@views_bp.route('/clientrenewal', methods=['GET', 'POST'])
+def prepare_client_renewal():
+    """
+    View Colleague contract details.
+    """
+    contract = session.get('sessionContract', {})
+    service_id = contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
+
+    # format start and end dates so they will populate date picker input correctly
+    # first check if the date is in the expected format
+    if contract and contract.get('startdate'):
+        startdate_obj = datetime.strptime(contract['startdate'], "%d/%m/%Y")
+        contract['startdate'] = startdate_obj.strftime("%Y-%m-%d")
+    if contract and contract.get('enddate'):
+        enddate_obj = datetime.strptime(contract['enddate'], "%d/%m/%Y")  
+        contract['enddate'] = enddate_obj.strftime("%Y-%m-%d")
+    return render_template('clientrenewal.html', contract=contract)
+
+
 @views_bp.route('/download_client_contract', methods=['POST'])
 def download_client_contract():
     """
@@ -329,7 +383,22 @@ def download_client_contract():
     contract = session.get('sessionContract', {})    
     sid = contract.get("sid", "")
     
-    # Ensure service standards and arrangements are loaded
+    # Ensure contact details are loaded
+    contact_id = contract.get("contactid", 0)
+    if contact_id == 0:
+        contact_id = request.form.get('contactId',0)
+        contact = getC7Contact(contact_id)
+        contract['contactid'] = contact_id
+        contract['contactemail'] = contact.get("email", "")
+        contract['contactphone'] = contact.get("phone", "") 
+        contract['contacttitle'] = contact.get("jobtitle", "")
+        contract['contactaddress'] = contact.get("address", "")
+        contact_name = formatName(f"{contact.get('firstname', '')},{contact.get('lastname', '')}")
+        contract["contactname"] = contact_name
+        # Persist back to session
+        session['sessionContract'] = contract
+
+    # Ensure service standards and arrangements are loaded 
     service_standards = session.get('serviceStandards', loadServiceStandards(sid))    
     arrangements = session.get('serviceArrangements', loadServiceArrangements(sid))
     
@@ -337,9 +406,10 @@ def download_client_contract():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
         
-    contract_record = db.session.scalar(select(ContractModel).where(ContractModel.sid == sid))
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
     special_conditions = contract_record.specialconditions if contract_record else ''
-    
+    context = contract_record.context if contract_record else ''
+
     # Build rows
     data_rows = []
     row = {}
@@ -376,6 +446,7 @@ def download_client_contract():
         row[column_name] = field
 
     row["SpecialConditions"] = special_conditions
+    row["Context"] = context
 
     std_fields = ["ssn", "description"]
     std_export_columns = ["SSN", "SSDescription"]
@@ -457,6 +528,146 @@ def download_client_contract():
         )
     else:
         flash(f"Client Statement of Service uploaded to SharePoint.", "success")
+        return redirect(url_for('views.index'))
+
+
+@views_bp.route('/download_client_renewal', methods=['POST'])
+def download_client_renewal():
+    """
+    Create an excel data file for merging into a Client Service Renewal document.
+    Upload this file to SharePoint, download the file when SP upload fails.
+    """
+    # Get session data
+    contract = session.get('sessionContract', {})    
+    sid = contract.get("sid", "")
+    
+    # Ensure service standards and arrangements are loaded
+    service_standards = session.get('serviceStandards', loadServiceStandards(sid))    
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(sid))
+    
+    agreement_date = request.form.get('AgreementDate', '')
+    f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
+    f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+        
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
+    special_conditions = contract_record.specialconditions if contract_record else ''
+    
+    # Build rows
+    data_rows = []
+    row = {}
+    row['AgreementDate'] = f_agreement_date
+
+    # Populate row with contract fields
+    # making any necessary substitutions
+    fields = ["companyname", "companyaddress", "companyjurisdiction", "companyregistrationnumber", 
+              "sid", "servicename", "charges", 
+              "contactname", "contacttitle", "contactemail", "contactphone", "contactaddress", 
+              "startdate", "enddate", "duration", 
+              "noticeperiod", "noticeperiod_unit",
+              "dmname", "dmtitle", "dmemail", "dmphone"]
+
+    export_columns = ["ClientName", "ClientAddress", "Jurisdiction", "ClientCompanyNo",                       
+                      "ServiceID", "ServiceName", "ClientCharge", 
+                      "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
+                      "ServiceStart", "ServiceEnd", "Duration", 
+                      "NoticePeriod", "NoticeUOM",
+                      "dmname", "dmtitle", "dmemail", "dmphone"]
+    
+    for raw_field, column_name in zip(fields, export_columns):
+
+        if raw_field == "companyjurisdiction":
+            tmp_field = contract.get(raw_field,"")
+            if tmp_field.strip().lower() == "england-wales":
+                field = "England and Wales"
+            else:
+                field = contract.get(raw_field, '')
+        # Tech debt: hard coded AD details        
+        if (raw_field == "dmphone" ):
+            field = "01379 871144"    
+        row[column_name] = field
+
+    row["SpecialConditions"] = special_conditions
+
+    std_fields = ["ssn", "description"]
+    std_export_columns = ["SSN", "SSDescription"]
+    
+    # Flatten service standards
+    for i in range(10):
+                
+        # add the standard fields
+        if i < len(service_standards):
+            standard = service_standards[i]        
+        else: 
+            standard = {}
+
+        for field, column_name in zip(std_fields, std_export_columns):
+            f_column_name = f"{column_name}{i}"
+
+            if standard:
+                row[f_column_name] = standard.get(field, '')
+            else:
+                row[f_column_name] = ''
+
+    # Flatten arrangements
+    for arr in arrangements:
+        day_string = arr['day'][:3]  # Get first 3 letters of the day
+        for k, v in arr.items():
+            if k == 'atclientlocation':
+                row[f"ACL{day_string}"] = v
+            elif k == 'atotherlocation':
+                row[f"AOL{day_string}"] = v
+            elif k == 'atservicebase':
+                row[f"ASB{day_string}"] = v
+            elif k == 'defaultserviceperiod':
+                row[f"DSP{day_string}"] = v
+                
+    data_rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(data_rows)
+
+    # Write to Excel in-memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+
+    output.seek(0)
+    wb = load_workbook(output)
+    ws = wb['Sheet1']
+
+    # add table
+    df_rows = len(df) + 1
+    df_cols = len(df.columns)
+    df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
+
+    table1 = Table(displayName="Table1", ref=df_range)
+    table1.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
+    )
+    ws.add_table(table1)
+
+    # Save final output
+    final_output = BytesIO()
+    wb.save(final_output)
+    final_output.seek(0)
+    
+    # Upload to SharePoint
+    target_url = "Review"
+    download_name=f"{sid} Client Service Renewal CROS.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Client Service Renewal to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Client Service Renewal uploaded to SharePoint.", "success")
         return redirect(url_for('views.index'))
 
 
@@ -1013,6 +1224,27 @@ def prepare_sp_contract():
     return render_template('spcontract.html', contract=contract)
 
 
+@views_bp.route('/sprenewal', methods=['GET', 'POST'])
+def prepare_sp_renewal():
+
+    contract = session.get('sessionContract', {})
+    service_id = contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
+
+    # format start and end dates so they will populate date picker input correctly
+    # first check if the date is in the expected format
+    if contract and contract.get('startdate'):
+        startdate_obj = datetime.strptime(contract['startdate'], "%d/%m/%Y")
+        contract['startdate'] = startdate_obj.strftime("%Y-%m-%d")
+    if contract and contract.get('enddate'):
+        enddate_obj = datetime.strptime(contract['enddate'], "%d/%m/%Y")  
+        contract['enddate'] = enddate_obj.strftime("%Y-%m-%d")
+
+    return render_template('sprenewal.html', contract=contract)
+
+
 @views_bp.route('/download_sp_contract', methods=['POST'])
 def download_sp_contract():
     """
@@ -1027,15 +1259,17 @@ def download_sp_contract():
     cs_standards = loadServiceStandards("CS") or []
 
     # Ensure service standards and arrangements are loaded
-    service_standards = session.get('serviceStandards', loadServiceStandards(service_id))
-    arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))
-        
+    service_standards = session.get('serviceStandards')
+    if not service_standards:
+        service_standards = loadServiceStandards(service_id)
+
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))        
     agreement_date = request.form.get('AgreementDate', '')
     
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    contract_record = db.session.scalar(select(ContractModel).where(ContractModel.sid == service_id))
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
     special_conditions = contract_record.specialconditions if contract_record else ''
 
     # Build rows
@@ -1163,7 +1397,153 @@ def download_sp_contract():
         flash(f"Service Provider Statement of Service uploaded to SharePoint.", "success")
         return redirect(url_for('views.index'))
     
+
+@views_bp.route('/download_sp_renewal', methods=['POST'])
+def download_sp_renewal():
+    """
+    Export SP renewal data to Excel file for merge into docx
+    There are 20 pairs of standard fields defined, this gives us a number of spares, should the number of CS or SP standards increase
+    """
+    # Get session data
+    contract = session.get('sessionContract', {})    
     
-@views_bp.route('/preview_docx')
-def preview_docx():
-    return serve_docx("target-folder", "test.docx")    
+    service_id = contract.get("sid", "")
+
+    cs_standards = loadServiceStandards("CS") or []
+
+    # Ensure service standards and arrangements are loaded
+    service_standards = session.get('serviceStandards', loadServiceStandards(service_id))
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))
+        
+    agreement_date = request.form.get('AgreementDate', '')
+    
+    f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
+    f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
+    special_conditions = contract_record.specialconditions if contract_record else ''
+
+    # Build rows
+    data_rows = []
+    row = {}
+    row['AgreementDate'] = f_agreement_date
+
+    # Populate row with contract fields
+    # making any necessary substitutions
+    fields = ["companyname", "companyaddress", "companyjurisdiction", "companyregistrationnumber", 
+              "sid", "servicename", "fees", 
+              "contactname", "contacttitle", "contactemail", "contactphone", "contactaddress", 
+              "startdate", "enddate", "duration", "noticeperiod", "noticeperiod_unit",
+              "dmname", "dmtitle", "dmemail", "dmphone"]
+
+    export_columns = ["ClientName", "ClientAddress", "Jurisdiction", "ClientCompanyNo",                       
+                      "ServiceID", "ServiceName", "Fees", 
+                      "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
+                      "ServiceStart", "ServiceEnd", "Duration", "NoticePeriod", "NoticeUOM",
+                      "dmname", "dmtitle", "dmemail", "dmphone"]
+
+    for raw_field, column_name in zip(fields, export_columns):
+
+        field = ""
+        if raw_field == "companyjurisdiction":
+            tmp_field = contract.get(raw_field,"")
+            if tmp_field.strip().lower() == "england-wales":
+                field = "England and Wales"
+        else:
+            field = contract.get(raw_field, '')
+        # Tech debt: hard coded AD details        
+        if (raw_field == "dmphone" ):
+            field = "01379 871144"    
+        row[column_name] = field
+
+    row["SpecialConditions"] = special_conditions
+
+    std_fields = ["ssn", "description"]
+    std_export_columns = ["SSN", "SSDescription"]
+    cs_count = 0
+    
+    # Flatten CS standards   
+    for i, std in enumerate(cs_standards, start=1):        
+        row[f"SSN{i}"] = std.ssn or ""
+        row[f"SSDescription{i}"] = std.description or ""
+        cs_count += 1
+
+    # Flatten service standards
+    for i in range(cs_count,20):
+
+        i_active = i - cs_count
+        # add the standard fields
+        if i_active < len(service_standards):
+            standard = service_standards[i_active]        
+        else: 
+            standard = {}
+
+        for field, column_name in zip(std_fields, std_export_columns):
+            f_column_name = f"{column_name}{i}"
+
+            if standard:
+                row[f_column_name] = standard.get(field, '')
+            else:
+                row[f_column_name] = ''
+
+    # Flatten arrangements
+    for arr in arrangements:
+        day_string = arr['day'][:3]  # Get first 3 letters of the day
+        for k, v in arr.items():
+            if k == 'atclientlocation':
+                row[f"ACL{day_string}"] = v
+            elif k == 'atotherlocation':
+                row[f"AOL{day_string}"] = v
+            elif k == 'atservicebase':
+                row[f"ASB{day_string}"] = v
+            elif k == 'defaultserviceperiod':
+                row[f"DSP{day_string}"] = v
+                
+    data_rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(data_rows)
+
+    # Write to Excel in-memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+
+    output.seek(0)
+    wb = load_workbook(output)
+    ws = wb['Sheet1']
+
+    # add table
+    df_rows = len(df) + 1
+    df_cols = len(df.columns)
+    df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
+
+    table1 = Table(displayName="Table1", ref=df_range)
+    table1.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
+    )
+    ws.add_table(table1)
+
+    # Save final output
+    final_output = BytesIO()
+    wb.save(final_output)
+    final_output.seek(0)
+    
+        # Upload to SharePoint
+    target_url = "Review"
+    download_name=f"{service_id} Service Provider Service Renewal SROS.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Service Provider Service Renewal to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Service Provider Service Renewal uploaded to SharePoint.", "success")
+        return redirect(url_for('views.index'))

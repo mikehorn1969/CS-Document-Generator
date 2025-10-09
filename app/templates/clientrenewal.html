@@ -8,9 +8,9 @@
 
 {% block content %}
 
-<h1>Service Provider Contract</h1>
+<h1>Client Contract Renewal</h1>
 
-<form action="/download_sp_contract" method="post">
+<form action="/download_client_renewal" method="post">
 
     <div>
         <label for="AgreementDate" class="index-label"><strong>Agreement Date</strong></label>
@@ -19,18 +19,6 @@
                 value="{{ contract['AgreementDate'] if contract and contract.get('AgreementDate') else '' }}" required>    
         </div>
     </div>
-    <div>
-        <label for="candidate-name" class="index-label"><strong>Name</strong></label>    
-            <div>
-                <input type="text" id="candidate-name" name="candidate-name" placeholder="Type a candidate surname..." autocomplete="off" class="name-textbox" \
-                    value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}">                    
-                <div id="candidate-suggestions"></div>
-            </div>  
-    </div>
-    <div>        
-        <input type='hidden' name='candidateId' id="candidateId">
-    </div>
-    
     <div>
         <label for="clientname" class="index-label"><strong>Client</strong></label>
         <div>
@@ -64,70 +52,21 @@
         </div>
     </div>
     <div>
-        <label for="Rate £" class="index-label"><strong>Rate</strong></label>
+        <label for="Rate" class="index-label"><strong>Rate</strong></label>
         <div>
+            <label>£
             <input type="number" step="0.01" name="Rate" placeholder="Enter Rate" \
-                value="{{ contract['fees'] if contract and contract.get('fees') else '' }}" required>    
+                value="{{ contract['charges'] if contract and contract.get('charges') else '' }}" required>    
+            </label>
         </div>
     </div>
     <input type="submit" class="button" id="submit-btn" value="Submit">
     <a href="{{ url_for('views.index') }}" class="button">Back</a>
-        
 </form>
 
 <script>
     $(document).ready(function() {
-        // Candidate name suggestions
-        $("#candidate-name").on("input", function() {
-            let query = $(this).val();
-            if (query.length > 2) {
-                $.getJSON("/searchcandidates", { q: query }, function (data) {
-                    const $sugs = $("#candidate-suggestions").empty();
-                    data.forEach(function (item) {
-                        const $row = $('<div class="candidate-suggestion"></div>')
-                        .text(item.candidateName)
-                        .data({
-                            candidateEmail: item.candidateEmail || "",
-                            candidatePhone: item.candidatePhone || "",
-                            candidateLtdName: item.candidateLtdName || "",
-                            candidateLtdRegNo: item.candidateLtdRegNo || "",
-                            candidateJurisdiction: item.candidateJurisdiction || "",
-                            candidateAddress: item.candidateAddress || "",
-                            candidateId: item.candidateId || ""
-                        });
-                        $sugs.append($row);
-                    });
-                });
-
-            } else {
-                $("#suggestions").empty();
-            }
-        });
-
-       $("#candidate-suggestions").on("click", ".candidate-suggestion", function() {
-            const $s = $(this);
-            $("#candidate-name").val($s.text());
-            $("#candidate-email").val($s.data("candidateEmail"));
-            $("#candidate-phone").val($s.data("candidatePhone"));
-            $("#candidate-ltdco").val($s.data("candidateLtdName"));
-            $("#candidate-ltdno").val($s.data("candidateLtdRegNo"));
-            $("#candidate-jurisdiction").val($s.data("candidateJurisdiction"));
-            $("#reg-address").val($s.data("candidateAddress"));
-            $("#candidateId").val($s.data("candidateId"));
-            
-            const payload = { candidateId: $s.data("candidateId") };
-
-            $("#candidate-suggestions").empty();
-
-            $.ajax({
-                url: "/contract/candidate",
-                method: "POST",
-                contentType: "application/json",
-                data: JSON.stringify(payload)
-            }).fail(xhr => console.error("Save failed:", xhr.responseText));
-            
-        });
-
+        
         // Client name suggestions
         $("#clientname").on("input", function() {
             let query = $(this).val();
