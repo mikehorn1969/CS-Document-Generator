@@ -6,6 +6,7 @@ import dotenv
 from sqlalchemy import create_engine
 from sqlalchemy import text
 from app.helper import load_config
+from app.keyvault import get_secret
 
 from sqlalchemy.orm import sessionmaker
 
@@ -26,6 +27,9 @@ def create_app():
     app.secret_key = secrets.token_hex(32)
 
     engine = build_engine()
+    if not engine:
+        raise RuntimeError("Failed to create database engine.") 
+    
     app.config['SQLALCHEMY_DATABASE_URI'] = str(engine.url)  # Flask needs this
     db.init_app(app)
     migrate.init_app(app, db)
@@ -41,41 +45,14 @@ def build_engine():
     import logging
     import time
     # Base ODBC parameters
-     # Choose auth by environment (simple heuristic)
-    """ running_in_azure = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("AZURE_CONTAINER_APP_NAME"))
 
-    if running_in_azure:
-        sql_server = os.getenv("SQL_SERVERNAME")
-        sql_database = os.getenv("SQL_DATABASENAME")    
-        sql_port = os.getenv("SQL_PORT", "1433")
-        if not sql_server or not sql_database:
-            raise RuntimeError("Missing SQL_SERVERNAME or SQL_DATABASENAME environment variable for Azure.")
-        odbc_params = (
-            "Driver={ODBC Driver 18 for SQL Server};"
-            f"Server=tcp:{sql_server},{sql_port};"
-            f"Database={sql_database};"
-            "Authentication=ActiveDirectoryMsi;"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-        )
-            # user-assigned managed identity
-        msi_client_id = os.getenv("AZURE_CLIENT_ID")
-        if msi_client_id:
-            odbc_params += f";MsiClientId={msi_client_id}"
-
-    else: """
-    sql_username = os.getenv("SQL-USERNAME")
-    sql_password = os.getenv("SQL-PASSWORD")
-    if not sql_username or not sql_password:
-        cfg = load_config()
-        sql_username = cfg["SQL-USERNAME"]
-        sql_password = cfg["SQL-PASSWORD"]
-
-    sql_servername = os.getenv("SQL_SERVERNAME")
-    sql_databasename = os.getenv("SQL_DATABASENAME")
-    sql_port = os.getenv("SQL_PORT", "1433")
+    sql_username = get_secret("SQL-USERNAME")
+    sql_password = get_secret("SQL-PASSWORD")
+    sql_servername = get_secret("SQL-SERVERNAME")
+    sql_databasename = get_secret("SQL-DATABASE")
+    sql_port = get_secret("SQL-PORT")
     if not all([sql_username, sql_password, sql_servername, sql_databasename]):
-        raise RuntimeError("Missing one or more required SQL environment variables for local connection.")
+        raise RuntimeError("Missing one or more required SQL environment variables for db connection.")
     odbc_params = (
         "Driver={ODBC Driver 18 for SQL Server};"
         f"Server=tcp:{sql_servername},{sql_port};"
@@ -90,7 +67,7 @@ def build_engine():
     )
 
     # Optional: log connection string without password for debugging
-    safe_odbc_params = odbc_params.replace(f"Pwd={os.getenv('SQL_PASSWORD', '')};", "Pwd=****;")
+    safe_odbc_params = odbc_params.replace(f"Pwd={sql_password};", "Pwd=****;")
     logging.info(f"Connecting to SQL Server with: {safe_odbc_params}")
 
     engine = create_engine(
