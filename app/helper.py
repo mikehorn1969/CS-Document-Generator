@@ -3,7 +3,24 @@ from __future__ import annotations
 
 import os
 import io
+# helper.py
+from __future__ import annotations
+
+import os
+import io
 import requests
+import paramiko
+import time
+from typing import Optional, Dict
+from sqlalchemy.exc import OperationalError
+from app.keyvault import get_secret, get_kv_client
+from docx import Document
+from flask import send_file
+from datetime import datetime
+import tempfile
+
+# local .env support
+from dotenv import load_dotenv
 import paramiko
 import time
 from typing import Optional, Dict

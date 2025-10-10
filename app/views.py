@@ -25,10 +25,15 @@ views_bp = Blueprint('views', __name__)
 
 
 @views_bp.route('/', methods=["GET", "POST"])
+views_bp = Blueprint('views', __name__)
+
+
+@views_bp.route('/', methods=["GET", "POST"])
 def index():
     return render_template('index.html', sid=session.get('sid', ''))
 
 
+@views_bp.route('/searchcandidates')
 @views_bp.route('/searchcandidates')
 def search_candidates():
     q = request.args.get("q", "").strip()
@@ -38,12 +43,15 @@ def search_candidates():
     
 
 @views_bp.route('/searchclients')
+@views_bp.route('/searchclients')
 def search_clients():
     q = request.args.get("q", "").strip()
+    results = fetch_clients(q)
     results = fetch_clients(q)
     return jsonify(results)
 
 
+@views_bp.route('/searchcontacts')
 @views_bp.route('/searchcontacts')
 def search_contacts():
     qclient = request.args.get('client','').strip()
@@ -53,11 +61,14 @@ def search_contacts():
 
           
 @views_bp.route('/clearsession', methods=["POST"])
+@views_bp.route('/clearsession', methods=["POST"])
 def clear_session():
     session.clear()
     return redirect(url_for('views.index'))
+    return redirect(url_for('views.index'))
 
 
+@views_bp.route('/colleaguedata', methods=["GET"])
 @views_bp.route('/colleaguedata', methods=["GET"])
 def colleaguedata():
     """
@@ -75,10 +86,16 @@ def colleaguedata():
         flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('views.index'))
     
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('views.index'))
+    
     return render_template(
+        'colleague.html', contractdata=session_contract)
         'colleague.html', contractdata=session_contract)
 
 
+@views_bp.route('/validateC7', methods=["POST"])
+def validateC7():
 @views_bp.route('/validateC7', methods=["POST"])
 def validateC7():
     """
@@ -95,13 +112,30 @@ def validateC7():
         ch_candidatename = ch_candidatename[0]
         ch_result = validateCH(contract.get("candidateltdregno"), contract.get("candidateltdname"), ch_candidatename)
 
+    contract = session.get('sessionContract', {})
+    passed = True
+    
+    if contract:
+        # validate data against CH records
+        # 1. Candidate        
+        ch_candidatename = contract.get("candidateName").split("(")
+        ch_candidatename = ch_candidatename[0]
+        ch_result = validateCH(contract.get("candidateltdregno"), contract.get("candidateltdname"), ch_candidatename)
+
+        if not ch_result.get("Valid", False):
+            flash(ch_result.get("Narrative",""), "error")
+            passed = False
         if not ch_result.get("Valid", False):
             flash(ch_result.get("Narrative",""), "error")
             passed = False
 
         # 2. Client - only where clientname is present
         client_companyname = contract.get("companyregistrationnumber")
+        # 2. Client - only where clientname is present
+        client_companyname = contract.get("companyregistrationnumber")
 
+        if client_companyname:
+            ch_result = validateCH(client_companyname, contract.get("companyname"))
         if client_companyname:
             ch_result = validateCH(client_companyname, contract.get("companyname"))
 
@@ -116,7 +150,63 @@ def validateC7():
         
 
 @views_bp.route('/servicestandards', methods=['GET', 'POST'])
+            if not ch_result.get("Valid", False):
+                flash(ch_result.get("Narrative",""), "error")
+                passed = False
+
+    if passed:
+       flash("Companies House validation passed.", "success")
+
+    return redirect(url_for('views.colleaguedata'))
+        
+
+@views_bp.route('/servicestandards', methods=['GET', 'POST'])
 def set_servicestandards():
+    
+    standards = []
+    session_contract = {}
+    service_id = ""
+    contract = {}
+
+    # Determine which standards to show - either passed in query string or form data
+    which = request.args.get('which')  # "CS Standards" or "SP Standards"
+    if not which:
+        which = request.form.get('which', 'CS Standards')
+
+    # If SP Standards button clicked, get session data
+    if which == "SP Standards":        
+        session_contract = session.get('sessionContract', {})
+        service_id = session_contract.get("sid", "")
+        context = session_contract.get("context", "")
+        if service_id is None or service_id == "":
+            flash("Select a Service Provider with a Service ID before continuing.", "error")
+            return redirect(url_for('views.index'))
+    # otherwise we only need the service ID
+    else:
+        service_id = "CS"
+
+    if request.method == "GET":
+                    
+        if which == "SP Standards":
+            # Load available contract data
+            contract = session_contract
+            if contract:
+                session['sessionContract'] = contract                
+        else:
+            # No contract data needed for CS Standards
+            contract = {"sid": service_id}
+
+        standards = loadServiceStandards(service_id) 
+
+        if which == "SP Standards":
+            contract_record = db.session.scalar(
+                select(ServiceContract).where(ServiceContract.sid == service_id)
+            )
+            if contract_record:
+                contract['context'] = contract_record.context or ''
+
+    elif request.method == 'POST':
+
     
     standards = []
     session_contract = {}
@@ -184,6 +274,7 @@ def set_servicestandards():
                     if ssn.strip() and desc.strip():
                         new_standard = ServiceStandard()
                         new_standard.sid = service_id
+                        new_standard.sid = service_id
                         new_standard.ssn = ssn.strip()
                         new_standard.description = rawDesc
                         db.session.add(new_standard)
@@ -222,9 +313,38 @@ def set_servicestandards():
     # (re)load for display 
     return render_template('standards.html', contract=contract, standards=standards, which=which)
 
+        if which == "SP Standards":
+            # Persist to session contract for later exports
+            contract = session.get('sessionContract', {})     
+            context = request.form.get('context','').strip()
+            contract['context'] = context
+            session['sessionContract'] = contract
+            # Special conditions (stored on the contract record if present)
+            raw = request.form.get('context')
+            specialconditions = raw.strip() if isinstance(raw, str) else ''
+
+            contract_record = db.session.scalar(
+                select(ServiceContract).where(ServiceContract.sid == service_id)
+            )
+            if not contract_record:
+                contract_record = ServiceContract(sid=service_id, context=context)
+                db.session.add(contract_record)
+            else:
+                contract_record.context = context
+
+            # Commit all changes once
+            db.session.commit()
+
+    # (re)load for display 
+    return render_template('standards.html', contract=contract, standards=standards, which=which)
+
 
 @views_bp.route('/delete/<int:stdid>', methods=['POST'])
+@views_bp.route('/delete/<int:stdid>', methods=['POST'])
 def delete_standard(stdid):
+    """
+    Deletes a service standard by its ID.
+    """
     """
     Deletes a service standard by its ID.
     """
@@ -232,10 +352,23 @@ def delete_standard(stdid):
     db.session.delete(standard)
     db.session.commit()
     return redirect(url_for('views.set_servicestandards'))
+    return redirect(url_for('views.set_servicestandards'))
 
 
 @views_bp.route('/servicearrangements', methods=['GET', 'POST'])
+@views_bp.route('/servicearrangements', methods=['GET', 'POST'])
 def manage_servicearrangements():
+    """
+    View and edit service arrangements for a given service ID.
+    """
+    session_contract = session.get('sessionContract', {})
+    service_id = session_contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
+
+    contract = session['sessionContract']    
+    service_id = contract.get("sid", "")
     """
     View and edit service arrangements for a given service ID.
     """
@@ -250,9 +383,55 @@ def manage_servicearrangements():
 
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
     if request.method == 'POST':
         # For each day, get or create, then update from form (or sensible defaults for new rows)
+        # For each day, get or create, then update from form (or sensible defaults for new rows)
         for day in days:
+            arrangement = (db.session.query(ServiceArrangement)
+                           .filter(ServiceArrangement.sid == service_id,
+                                   ServiceArrangement.day == day)
+                           .one_or_none())
+
+            is_weekend = day in {'Saturday', 'Sunday'}
+
+            def _default(field: str) -> str:
+                if is_weekend:
+                    if field == 'defaultserviceperiod':
+                        return 'As agreed if required'
+                    if field == 'atservicebase':
+                        return 'As agreed if required'
+                    if field == 'atclientlocation':
+                        return 'As agreed if required'
+                    if field == 'atotherlocation':
+                        return 'Prior approval required'
+                else:
+                    if field == 'defaultserviceperiod':
+                        return 'As specified 0800 - 1800'
+                    if field == 'atservicebase':
+                        return 'As specified'
+                    if field == 'atclientlocation':
+                        return 'As specified'
+                    if field == 'atotherlocation':
+                        return 'Prior approval required'
+                return ''
+
+            if arrangement is None:
+                arrangement = ServiceArrangement(sid=service_id, day=day)
+                db.session.add(arrangement)
+
+            # Update from form (fall back to defaults when creating; fall back to existing otherwise)
+            arrangement.defaultserviceperiod = request.form.get(f'{day}_default',
+                                                                arrangement.defaultserviceperiod or _default('defaultserviceperiod'))
+            arrangement.atservicebase = request.form.get(f'{day}_base',
+                                                         arrangement.atservicebase or _default('atservicebase'))
+            arrangement.atclientlocation = request.form.get(f'{day}_client',
+                                                            arrangement.atclientlocation or _default('atclientlocation'))
+            arrangement.atotherlocation = request.form.get(f'{day}_other',
+                                                           arrangement.atotherlocation or _default('atotherlocation'))
+
+        # Special conditions (stored on the contract record if present)
             arrangement = (db.session.query(ServiceArrangement)
                            .filter(ServiceArrangement.sid == service_id,
                                    ServiceArrangement.day == day)
@@ -301,7 +480,15 @@ def manage_servicearrangements():
 
         contract_record = db.session.scalar(
             select(ServiceContract).where(ServiceContract.sid == service_id)
+            select(ServiceContract).where(ServiceContract.sid == service_id)
         )
+        if not contract_record:
+            contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions)
+            db.session.add(contract_record)
+        else:
+            contract_record.specialconditions = specialconditions
+
+        # Commit all changes once
         if not contract_record:
             contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions)
             db.session.add(contract_record)
@@ -312,7 +499,66 @@ def manage_servicearrangements():
         db.session.commit()
 
         # Persist to session for later exports
+        # Persist to session for later exports
         session['specialConditions'] = specialconditions
+    
+    # GET: (re)load for display
+    arr_list = loadServiceArrangements(service_id) or []  # returns list and sets session cache      
+    # Make a mapping keyed by day so Jinja can do arrangements.get("Monday")
+    arrangements = {
+        (row.get('day') if isinstance(row, dict) else row.day): row
+        for row in arr_list
+    }
+    contract_record = db.session.scalar(
+        select(ServiceContract).where(ServiceContract.sid == service_id)
+    )
+    if contract_record:
+        contract['specialconditions'] = contract_record.specialconditions or ''
+    return render_template('arrangements.html', arrangements=arrangements, contract=contract)
+
+
+@views_bp.route('/clientcontract', methods=['GET', 'POST'])
+def prepare_client_contract():
+    """
+    View Colleague contract details.
+    """
+    contract = session.get('sessionContract', {})
+    service_id = contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
+
+    # format start and end dates so they will populate date picker input correctly
+    # first check if the date is in the expected format
+    if contract and contract.get('startdate'):
+        startdate_obj = datetime.strptime(contract['startdate'], "%d/%m/%Y")
+        contract['startdate'] = startdate_obj.strftime("%Y-%m-%d")
+    if contract and contract.get('enddate'):
+        enddate_obj = datetime.strptime(contract['enddate'], "%d/%m/%Y")  
+        contract['enddate'] = enddate_obj.strftime("%Y-%m-%d")
+    return render_template('clientcontract.html', contract=contract)
+
+
+@views_bp.route('/clientrenewal', methods=['GET', 'POST'])
+def prepare_client_renewal():
+    """
+    View Colleague contract details.
+    """
+    contract = session.get('sessionContract', {})
+    service_id = contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
+
+    # format start and end dates so they will populate date picker input correctly
+    # first check if the date is in the expected format
+    if contract and contract.get('startdate'):
+        startdate_obj = datetime.strptime(contract['startdate'], "%d/%m/%Y")
+        contract['startdate'] = startdate_obj.strftime("%Y-%m-%d")
+    if contract and contract.get('enddate'):
+        enddate_obj = datetime.strptime(contract['enddate'], "%d/%m/%Y")  
+        contract['enddate'] = enddate_obj.strftime("%Y-%m-%d")
+    return render_template('clientrenewal.html', contract=contract)
     
     # GET: (re)load for display
     arr_list = loadServiceArrangements(service_id) or []  # returns list and sets session cache      
@@ -402,9 +648,42 @@ def download_client_contract():
     service_standards = session.get('serviceStandards', loadServiceStandards(sid))    
     arrangements = session.get('serviceArrangements', loadServiceArrangements(sid))
     
+@views_bp.route('/download_client_contract', methods=['POST'])
+def download_client_contract():
+    """
+    Create an excel data file for merging into a Client Statement of Service document.
+    Upload this file to SharePoint, download the file when SP upload fails.
+    """
+    # Get session data
+    contract = session.get('sessionContract', {})    
+    sid = contract.get("sid", "")
+    
+    # Ensure contact details are loaded
+    contact_id = contract.get("contactid", 0)
+    if contact_id == 0:
+        contact_id = request.form.get('contactId',0)
+        contact = getC7Contact(contact_id)
+        contract['contactid'] = contact_id
+        contract['contactemail'] = contact.get("email", "")
+        contract['contactphone'] = contact.get("phone", "") 
+        contract['contacttitle'] = contact.get("jobtitle", "")
+        contract['contactaddress'] = contact.get("address", "")
+        contact_name = formatName(f"{contact.get('firstname', '')},{contact.get('lastname', '')}")
+        contract["contactname"] = contact_name
+        # Persist back to session
+        session['sessionContract'] = contract
+
+    # Ensure service standards and arrangements are loaded 
+    service_standards = session.get('serviceStandards', loadServiceStandards(sid))    
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(sid))
+    
     agreement_date = request.form.get('AgreementDate', '')
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+        
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
+    special_conditions = contract_record.specialconditions if contract_record else ''
+    context = contract_record.context if contract_record else ''
         
     contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
     special_conditions = contract_record.specialconditions if contract_record else ''
@@ -423,11 +702,15 @@ def download_client_contract():
               "startdate", "enddate", "duration", 
               "noticeperiod", "noticeperiod_unit",
               "dmname", "dmtitle", "dmemail", "dmphone"]
+              "noticeperiod", "noticeperiod_unit",
+              "dmname", "dmtitle", "dmemail", "dmphone"]
 
     export_columns = ["ClientName", "ClientAddress", "Jursidiction", "ClientCompanyNo",                       
                       "ServiceID", "ServiceName", "ClientCharge", 
                       "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
                       "ServiceStart", "ServiceEnd", "Duration", 
+                      "NoticePeriod", "NoticeUOM",
+                      "dmname", "dmtitle", "dmemail", "dmphone"]
                       "NoticePeriod", "NoticeUOM",
                       "dmname", "dmtitle", "dmemail", "dmphone"]
     
@@ -441,7 +724,152 @@ def download_client_contract():
             field = contract.get(raw_field, '')
         field = contract.get(raw_field, '')
         # Tech debt: hard coded AD details        
+            field = contract.get(raw_field, '')
+        field = contract.get(raw_field, '')
+        # Tech debt: hard coded AD details        
         if (raw_field == "dmphone" ):
+            field = "01379 871144"    
+        row[column_name] = field
+
+    row["SpecialConditions"] = special_conditions
+    row["Context"] = context
+
+    std_fields = ["ssn", "description"]
+    std_export_columns = ["SSN", "SSDescription"]
+    
+    # Flatten service standards
+    for i in range(10):
+                
+        # add the standard fields
+        if i < len(service_standards):
+            standard = service_standards[i]        
+        else: 
+            standard = {}
+
+        for field, column_name in zip(std_fields, std_export_columns):
+            f_column_name = f"{column_name}{i}"
+
+            if standard:
+                row[f_column_name] = standard.get(field, '')
+            else:
+                row[f_column_name] = ''
+
+    # Flatten arrangements
+    for arr in arrangements:
+        day_string = arr['day'][:3]  # Get first 3 letters of the day
+        for k, v in arr.items():
+            if k == 'atclientlocation':
+                row[f"ACL{day_string}"] = v
+            elif k == 'atotherlocation':
+                row[f"AOL{day_string}"] = v
+            elif k == 'atservicebase':
+                row[f"ASB{day_string}"] = v
+            elif k == 'defaultserviceperiod':
+                row[f"DSP{day_string}"] = v
+                
+    data_rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(data_rows)
+
+    # Write to Excel in-memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+
+    output.seek(0)
+    wb = load_workbook(output)
+    ws = wb['Sheet1']
+
+    # add table
+    df_rows = len(df) + 1
+    df_cols = len(df.columns)
+    df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
+
+    table1 = Table(displayName="Table1", ref=df_range)
+    table1.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
+    )
+    ws.add_table(table1)
+
+    # Save final output
+    final_output = BytesIO()
+    wb.save(final_output)
+    final_output.seek(0)
+    
+    # Upload to SharePoint
+    target_url = "Review"
+    download_name=f"{sid} Client Statement of Service CSOS.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Client Statement of Service to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Client Statement of Service uploaded to SharePoint.", "success")
+        return redirect(url_for('views.index'))
+
+
+@views_bp.route('/download_client_renewal', methods=['POST'])
+def download_client_renewal():
+    """
+    Create an excel data file for merging into a Client Service Renewal document.
+    Upload this file to SharePoint, download the file when SP upload fails.
+    """
+    # Get session data
+    contract = session.get('sessionContract', {})    
+    sid = contract.get("sid", "")
+    
+    # Ensure service standards and arrangements are loaded
+    service_standards = session.get('serviceStandards', loadServiceStandards(sid))    
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(sid))
+    
+    agreement_date = request.form.get('AgreementDate', '')
+    f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
+    f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+        
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
+    special_conditions = contract_record.specialconditions if contract_record else ''
+    
+    # Build rows
+    data_rows = []
+    row = {}
+    row['AgreementDate'] = f_agreement_date
+
+    # Populate row with contract fields
+    # making any necessary substitutions
+    fields = ["companyname", "companyaddress", "companyjurisdiction", "companyregistrationnumber", 
+              "sid", "servicename", "charges", 
+              "contactname", "contacttitle", "contactemail", "contactphone", "contactaddress", 
+              "startdate", "enddate", "duration", 
+              "noticeperiod", "noticeperiod_unit",
+              "dmname", "dmtitle", "dmemail", "dmphone"]
+
+    export_columns = ["ClientName", "ClientAddress", "Jurisdiction", "ClientCompanyNo",                       
+                      "ServiceID", "ServiceName", "ClientCharge", 
+                      "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
+                      "ServiceStart", "ServiceEnd", "Duration", 
+                      "NoticePeriod", "NoticeUOM",
+                      "dmname", "dmtitle", "dmemail", "dmphone"]
+    
+    for raw_field, column_name in zip(fields, export_columns):
+
+        if raw_field == "companyjurisdiction":
+            tmp_field = contract.get(raw_field,"")
+            if tmp_field.strip().lower() == "england-wales":
+                field = "England and Wales"
+            else:
+                field = contract.get(raw_field, '')
+        # Tech debt: hard coded AD details        
+        if (raw_field == "dmphone" ):
+            field = "01379 871144"    
             field = "01379 871144"    
         row[column_name] = field
 
@@ -669,10 +1097,32 @@ def download_client_renewal():
     else:
         flash(f"Client Service Renewal uploaded to SharePoint.", "success")
         return redirect(url_for('views.index'))
+    # Upload to SharePoint
+    target_url = "Review"
+    download_name=f"{sid} Client Service Renewal CROS.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Client Service Renewal to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Client Service Renewal uploaded to SharePoint.", "success")
+        return redirect(url_for('views.index'))
 
 
 @views_bp.route('/spmsa', methods=['GET', 'POST'])
+@views_bp.route('/spmsa', methods=['GET', 'POST'])
 def prepare_sp_msa():
+    """
+    Load the Service Provider MSA page.
+    """
     """
     Load the Service Provider MSA page.
     """
@@ -681,12 +1131,20 @@ def prepare_sp_msa():
     if not session_contract:
         flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('views.index'))
+    if not session_contract:
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('views.index'))
 
+    return render_template('spmsa.html', contract=session_contract)
     return render_template('spmsa.html', contract=session_contract)
 
 
 @views_bp.route('/spnda', methods=['GET', 'POST'])
+@views_bp.route('/spnda', methods=['GET', 'POST'])
 def prepare_sp_nda():
+    """
+    Load the Service Provider NDA page.
+    """
     """
     Load the Service Provider NDA page.
     """
@@ -697,10 +1155,20 @@ def prepare_sp_nda():
         return redirect(url_for('views.index'))
 
     return render_template('spnda.html', contract=session_contract)
+    if not session_contract:
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('views.index'))
+
+    return render_template('spnda.html', contract=session_contract)
 
 
 @views_bp.route('/download_sp_msa', methods=['POST'])
+@views_bp.route('/download_sp_msa', methods=['POST'])
 def download_sp_msa():
+    """
+    Create an excel data file for merging into a Service Provider MSA document.
+    Upload this file to SharePoint, download the file when SP upload fails so that it can be manually uploaded.
+    """    
     """
     Create an excel data file for merging into a Service Provider MSA document.
     Upload this file to SharePoint, download the file when SP upload fails so that it can be manually uploaded.
@@ -710,8 +1178,11 @@ def download_sp_msa():
     if not contract:
         flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('views.index'))
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('views.index'))
 
     agreement_date = request.form.get('AgreementDate', '')
+    candidate_email = request.form.get('candidate-email', '')
     candidate_email = request.form.get('candidate-email', '')
     
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
@@ -726,10 +1197,18 @@ def download_sp_msa():
     export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress", "CandidateEmail"]
 
     # Populate row with contract fields
+    fields = ["candidateName", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress", "candidateemail"]
+
+    export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress", "CandidateEmail"]
+
+    # Populate row with contract fields
     # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
         if ( raw_field == "candidateName" ):
+        if ( raw_field == "candidateName" ):
             field = formatName(contract.get(raw_field,''))
+        elif (raw_field == "candidateemail"):
+            field = candidate_email
         elif (raw_field == "candidateemail"):
             field = candidate_email
         else:
@@ -785,16 +1264,43 @@ def download_sp_msa():
     else:
         flash(f"Service Provider MSA uploaded to SharePoint.", "success")
         return redirect(url_for('views.index'))
+    # Upload to SharePoint
+    target_url = "Docusign"
+    download_name=f"{contract.get('candidateltdname')} Service Provider MSA SMSA.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Service Provider MSA to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Service Provider MSA uploaded to SharePoint.", "success")
+        return redirect(url_for('views.index'))
 
 
 @views_bp.route('/clientmsa', methods=['GET', 'POST'])
+@views_bp.route('/clientmsa', methods=['GET', 'POST'])
 def prepare_client_msa():
+    session_contract = session.get('sessionContract') or None
     session_contract = session.get('sessionContract') or None
 
     if not session_contract:
         flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('views.index'))
+    if not session_contract:
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('views.index'))
 
+    return render_template('clientmsa.html', contract=session_contract)
+
+
+@views_bp.route('/download_client_msa', methods=['POST'])
     return render_template('clientmsa.html', contract=session_contract)
 
 
@@ -804,6 +1310,10 @@ def download_client_msa():
     # Get session data, obtain it from the form if necessary - most likely for an MSA
     contract = session.get('sessionContract', {})
     if not contract:
+        flash(f"No data found for Client MSA.", "error")
+        return redirect(url_for('views.index'))
+        
+    email_address = request.form.get('contactEmail', '')
         flash(f"No data found for Client MSA.", "error")
         return redirect(url_for('views.index'))
         
@@ -829,26 +1339,50 @@ def download_client_msa():
         
         return serve_docx(file_bytes, "Client MSA - AUTOMATED MASTER.docx")
         
+
+
+    if "btPreview" in request.form:
+        target_folder = "Templates/Business templates/Service Provider Templates"
+        target_file = "Client MSA - AUTOMATED MASTER.docx"
+        
+        file_bytes = downloadFromSharePoint(target_folder, target_file)
+        
+        if not file_bytes:
+            flash("Failed to download Client MSA template from SharePoint.", "error")
+            return redirect(url_for('views.index'))
+        
+        return serve_docx(file_bytes, "Client MSA - AUTOMATED MASTER.docx")
+        
     # Build rows
     data_rows = []
     row = {}
     row["AgreementDate"] = f_agreement_date
     fields = ["companyname", "companyregistrationnumber", "companyjurisdiction", "companyaddress", "contactname", "contacttitle", "contactemail", "contactphone"]
+    fields = ["companyname", "companyregistrationnumber", "companyjurisdiction", "companyaddress", "contactname", "contacttitle", "contactemail", "contactphone"]
 
+    export_columns = ["ClientName", "CompanyNumber", "Jurisdiction", "CompanyAddress", "ContactName", "ContactTitle", "ContactEmail", "ContactPhone"]
     export_columns = ["ClientName", "CompanyNumber", "Jurisdiction", "CompanyAddress", "ContactName", "ContactTitle", "ContactEmail", "ContactPhone"]
 
     # Populate row with contract fields
     # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
         if ( raw_field == "candidateName" ):
+        if ( raw_field == "candidateName" ):
             field = formatName(contract.get(raw_field,''))
+        elif (raw_field == "contactemail"):
+            field = email_address
         elif (raw_field == "contactemail"):
             field = email_address
         else:
             field = contract.get(raw_field, '')
 
 
+
         row[column_name] = field
+
+    # Tech debt: hard coded contract type
+    row["ContractType"] = "Flex"
+
 
     # Tech debt: hard coded contract type
     row["ContractType"] = "Flex"
@@ -884,11 +1418,15 @@ def download_client_msa():
     final_output.seek(0)
     
     # Upload to SharePoint
+    # Upload to SharePoint
 
+    target_url = "Docusign"
+    download_name=f"{contract.get('companyname')} Client MSA CMSA.xlsx"
     target_url = "Docusign"
     download_name=f"{contract.get('companyname')} Client MSA CMSA.xlsx"
 
     file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
     uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
 
     if uploaded_file not in (200, 201):  
@@ -903,7 +1441,20 @@ def download_client_msa():
         flash(f"Client MSA uploaded to SharePoint folder {target_url}.", "success")
         return redirect(url_for('views.index'))
     
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Client MSA to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Client MSA uploaded to SharePoint folder {target_url}.", "success")
+        return redirect(url_for('views.index'))
+    
 
+@views_bp.route('/chfetch', methods=['POST'])
 @views_bp.route('/chfetch', methods=['POST'])
 def get_company_number():
     ltd_name = request.form.get('clientname','')
@@ -957,6 +1508,10 @@ def fetch_candidates(query: str) -> List[dict]:
     if payload is None or not isinstance(payload, list) or len(payload) == 0:
         return []   
 
+    payload = getC7Candidates(qkey)
+    if payload is None or not isinstance(payload, list) or len(payload) == 0:
+        return []   
+
     results = []
     
     for candidate_id in payload:
@@ -999,6 +1554,7 @@ def fetch_clients(query: str) -> List[dict]:
 
     payload = []
     if Company.count() == 0:
+        payload = loadC7Clients()
         payload = loadC7Clients()
     else:
         payload = Company.get_all_companies()
@@ -1063,6 +1619,7 @@ def fetch_contacts(qclient: str, qcontact: str) -> List[dict]:
     return results
 
 
+
 def parse_date(value: str):
     try:
         # Parse the date string
@@ -1089,10 +1646,14 @@ def list_to_dict(prefix_list):
 
 
 @views_bp.route('/candidatefetch', methods=['POST'])
+@views_bp.route('/candidatefetch', methods=['POST'])
 def candidatefetch():
     candidate_name = request.form.get('CandidateName', '')
     result = searchC7Candidate(candidate_name) if candidate_name else None
+    result = searchC7Candidate(candidate_name) if candidate_name else None
 
+    if not result:
+        return jsonify({'error': 'No candidates found'}), 404
     if not result:
         return jsonify({'error': 'No candidates found'}), 404
         
@@ -1100,12 +1661,14 @@ def candidatefetch():
 
 
 @views_bp.post("/contract/candidate")
+@views_bp.post("/contract/candidate")
 def set_contract_candidate():
     data = request.get_json(force=True) or {}
     cand_id = data.get("candidateId")
     if not cand_id:
         return jsonify(error="candidateId required"), 400
 
+    # contract = session.get("sessionContract", {})
     # contract = session.get("sessionContract", {})
         
     # Load existing contract data if available
@@ -1117,16 +1680,24 @@ def set_contract_candidate():
         candidate_name = session.get("candidateName", "")
         if candidate_name is None or candidate_name == "":
             session["candidateName"] = contract.get("candidateName", "")    
+        # only override session candidateName once, user must click 'Clear Session' to reset
+        # this is to preserve the original candidate name including the service ID
+        candidate_name = session.get("candidateName", "")
+        if candidate_name is None or candidate_name == "":
+            session["candidateName"] = contract.get("candidateName", "")    
         session.modified = True
     return ("", 204)
 
 
+@views_bp.route('/download_sp_nda', methods=['POST'])
 @views_bp.route('/download_sp_nda', methods=['POST'])
 def download_sp_nda():
 
     # Get session data
     contract = session.get('sessionContract', {})
     if not contract:
+        flash("Select a Service Provider before continuing.", "error")
+        return redirect(url_for('views.index'))
         flash("Select a Service Provider before continuing.", "error")
         return redirect(url_for('views.index'))
 
@@ -1140,7 +1711,9 @@ def download_sp_nda():
     row = {}
     row["AgreementDate"] = f_agreement_date
     fields = ["candidateName", "candidateaddress", "candidateemail"]
+    fields = ["candidateName", "candidateaddress", "candidateemail"]
     
+    export_columns = ["CandidateName", "CandidateAddress", "CandidateEmail"]
     export_columns = ["CandidateName", "CandidateAddress", "CandidateEmail"]
     
     # Populate row with contract fields    
@@ -1201,8 +1774,27 @@ def download_sp_nda():
     else:
         flash(f"Service Provider NDA uploaded to SharePoint.", "success")
         return redirect(url_for('views.index'))
+    # Upload to SharePoint
+    target_url = "Docusign"
+    download_name=f"{contract.get('candidateltdname')} Service Provider NDA SNDA.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Service Provider NDA to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Service Provider NDA uploaded to SharePoint.", "success")
+        return redirect(url_for('views.index'))
 
 
+@views_bp.route('/spcontract', methods=['GET', 'POST'])
 @views_bp.route('/spcontract', methods=['GET', 'POST'])
 def prepare_sp_contract():
     
@@ -1241,17 +1833,71 @@ def prepare_sp_renewal():
     if contract and contract.get('enddate'):
         enddate_obj = datetime.strptime(contract['enddate'], "%d/%m/%Y")  
         contract['enddate'] = enddate_obj.strftime("%Y-%m-%d")
+    
+    contract = session.get('sessionContract', {})
+    service_id = contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
 
+    # format start and end dates so they will populate date picker input correctly
+    # first check if the date is in the expected format
+    if contract and contract.get('startdate'):
+        startdate_obj = datetime.strptime(contract['startdate'], "%d/%m/%Y")
+        contract['startdate'] = startdate_obj.strftime("%Y-%m-%d")
+    if contract and contract.get('enddate'):
+        enddate_obj = datetime.strptime(contract['enddate'], "%d/%m/%Y")  
+        contract['enddate'] = enddate_obj.strftime("%Y-%m-%d")
+    
+    return render_template('spcontract.html', contract=contract)
+
+
+@views_bp.route('/sprenewal', methods=['GET', 'POST'])
+def prepare_sp_renewal():
+
+    contract = session.get('sessionContract', {})
+    service_id = contract.get("sid", "")
+    if service_id is None or service_id == "":
+        flash("Select a Service Provider with a Service ID before continuing.", "error")
+        return redirect(url_for('views.index'))
+
+    # format start and end dates so they will populate date picker input correctly
+    # first check if the date is in the expected format
+    if contract and contract.get('startdate'):
+        startdate_obj = datetime.strptime(contract['startdate'], "%d/%m/%Y")
+        contract['startdate'] = startdate_obj.strftime("%Y-%m-%d")
+    if contract and contract.get('enddate'):
+        enddate_obj = datetime.strptime(contract['enddate'], "%d/%m/%Y")  
+        contract['enddate'] = enddate_obj.strftime("%Y-%m-%d")
+
+    return render_template('sprenewal.html', contract=contract)
     return render_template('sprenewal.html', contract=contract)
 
 
+@views_bp.route('/download_sp_contract', methods=['POST'])
 @views_bp.route('/download_sp_contract', methods=['POST'])
 def download_sp_contract():
     """
     Export SP contract data to Excel file for merge into docx
     There are 20 pairs of standard fields defined, this gives us a number of spares, should the number of CS or SP standards increase
     """
+    """
+    Export SP contract data to Excel file for merge into docx
+    There are 20 pairs of standard fields defined, this gives us a number of spares, should the number of CS or SP standards increase
+    """
     # Get session data
+    contract = session.get('sessionContract', {})    
+    
+    service_id = contract.get("sid", "")
+
+    cs_standards = loadServiceStandards("CS") or []
+
+    # Ensure service standards and arrangements are loaded
+    service_standards = session.get('serviceStandards')
+    if not service_standards:
+        service_standards = loadServiceStandards(service_id)
+
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))        
     contract = session.get('sessionContract', {})    
     
     service_id = contract.get("sid", "")
@@ -1271,6 +1917,8 @@ def download_sp_contract():
 
     contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
     special_conditions = contract_record.specialconditions if contract_record else ''
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
+    special_conditions = contract_record.specialconditions if contract_record else ''
 
     # Build rows
     data_rows = []
@@ -1281,11 +1929,171 @@ def download_sp_contract():
     # making any neccessary substituions
     fields = ["companyname", "companyaddress", "companyjurisdiction", "companyregistrationnumber", 
               "sid", "servicename", "fees", 
+              "sid", "servicename", "fees", 
               "contactname", "contacttitle", "contactemail", "contactphone", "contactaddress", 
+              "startdate", "enddate", "duration", "noticeperiod", "noticeperiod_unit",
+              "dmname", "dmtitle", "dmemail", "dmphone"]
               "startdate", "enddate", "duration", "noticeperiod", "noticeperiod_unit",
               "dmname", "dmtitle", "dmemail", "dmphone"]
 
     export_columns = ["ClientName", "ClientAddress", "Jursidiction", "ClientCompanyNo",                       
+                      "ServiceID", "ServiceName", "Fees", 
+                      "ServiceID", "ServiceName", "Fees", 
+                      "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
+                      "ServiceStart", "ServiceEnd", "Duration", "NoticePeriod", "NoticeUOM",
+                      "dmname", "dmtitle", "dmemail", "dmphone"]
+
+                      "ServiceStart", "ServiceEnd", "Duration", "NoticePeriod", "NoticeUOM",
+                      "dmname", "dmtitle", "dmemail", "dmphone"]
+
+    for raw_field, column_name in zip(fields, export_columns):
+
+        field = ""
+        field = ""
+        if raw_field == "companyjurisdiction":
+            tmp_field = contract.get(raw_field,"")
+            if tmp_field.strip().lower() == "england-wales":
+                field = "England and Wales"
+        else:
+            field = contract.get(raw_field, '')
+        # Tech debt: hard coded AD details        
+        # Tech debt: hard coded AD details        
+        if (raw_field == "dmphone" ):
+            field = "01379 871144"    
+        row[column_name] = field
+
+    row["SpecialConditions"] = special_conditions
+
+    std_fields = ["ssn", "description"]
+    std_export_columns = ["SSN", "SSDescription"]
+    cs_count = 0
+    
+    # Flatten CS standards   
+    for i, std in enumerate(cs_standards, start=1):        
+        row[f"SSN{i}"] = std.ssn or ""
+        row[f"SSDescription{i}"] = std.description or ""
+        cs_count += 1
+
+    # Flatten service standards
+    for i in range(cs_count,20):
+
+        i_active = i - cs_count + 1
+        # add the standard fields
+        if i_active < len(service_standards):
+            standard = service_standards[i_active]        
+        else: 
+            standard = {}
+
+        for field, column_name in zip(std_fields, std_export_columns):
+            f_column_name = f"{column_name}{i}"
+
+            if standard:
+                row[f_column_name] = standard.get(field, '')
+            else:
+                row[f_column_name] = ''
+
+    # Flatten arrangements
+    for arr in arrangements:
+        day_string = arr['day'][:3]  # Get first 3 letters of the day
+        for k, v in arr.items():
+            if k == 'atclientlocation':
+                row[f"ACL{day_string}"] = v
+            elif k == 'atotherlocation':
+                row[f"AOL{day_string}"] = v
+            elif k == 'atservicebase':
+                row[f"ASB{day_string}"] = v
+            elif k == 'defaultserviceperiod':
+                row[f"DSP{day_string}"] = v
+                
+    data_rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(data_rows)
+
+    # Write to Excel in-memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+
+    output.seek(0)
+    wb = load_workbook(output)
+    ws = wb['Sheet1']
+
+    # add table
+    df_rows = len(df) + 1
+    df_cols = len(df.columns)
+    df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
+
+    table1 = Table(displayName="Table1", ref=df_range)
+    table1.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
+    )
+    ws.add_table(table1)
+
+    # Save final output
+    final_output = BytesIO()
+    wb.save(final_output)
+    final_output.seek(0)
+    
+        # Upload to SharePoint
+    target_url = "Review"
+    download_name=f"{service_id} Service Provider Statement of Service SSOS.xlsx"
+
+    file_bytes = final_output.getvalue()
+    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+    if uploaded_file not in (200, 201):  
+        flash(f"Failed to upload Service Provider Statement of Service to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+        return send_file(
+            final_output,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        flash(f"Service Provider Statement of Service uploaded to SharePoint.", "success")
+        return redirect(url_for('views.index'))
+    
+
+@views_bp.route('/download_sp_renewal', methods=['POST'])
+def download_sp_renewal():
+    """
+    Export SP renewal data to Excel file for merge into docx
+    There are 20 pairs of standard fields defined, this gives us a number of spares, should the number of CS or SP standards increase
+    """
+    # Get session data
+    contract = session.get('sessionContract', {})    
+    
+    service_id = contract.get("sid", "")
+
+    cs_standards = loadServiceStandards("CS") or []
+
+    # Ensure service standards and arrangements are loaded
+    service_standards = session.get('serviceStandards', loadServiceStandards(service_id))
+    arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))
+        
+    agreement_date = request.form.get('AgreementDate', '')
+    
+    f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
+    f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
+
+    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
+    special_conditions = contract_record.specialconditions if contract_record else ''
+
+    # Build rows
+    data_rows = []
+    row = {}
+    row['AgreementDate'] = f_agreement_date
+
+    # Populate row with contract fields
+    # making any necessary substitutions
+    fields = ["companyname", "companyaddress", "companyjurisdiction", "companyregistrationnumber", 
+              "sid", "servicename", "fees", 
+              "contactname", "contacttitle", "contactemail", "contactphone", "contactaddress", 
+              "startdate", "enddate", "duration", "noticeperiod", "noticeperiod_unit",
+              "dmname", "dmtitle", "dmemail", "dmphone"]
+
+    export_columns = ["ClientName", "ClientAddress", "Jurisdiction", "ClientCompanyNo",                       
                       "ServiceID", "ServiceName", "Fees", 
                       "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
                       "ServiceStart", "ServiceEnd", "Duration", "NoticePeriod", "NoticeUOM",
@@ -1302,6 +2110,7 @@ def download_sp_contract():
             field = contract.get(raw_field, '')
         # Tech debt: hard coded AD details        
         if (raw_field == "dmphone" ):
+            field = "01379 871144"    
             field = "01379 871144"    
         row[column_name] = field
 
@@ -1468,11 +2277,24 @@ def download_sp_renewal():
         row[f"SSDescription{i}"] = std.description or ""
         cs_count += 1
 
+    cs_count = 0
+    
+    # Flatten CS standards   
+    for i, std in enumerate(cs_standards, start=1):        
+        row[f"SSN{i}"] = std.ssn or ""
+        row[f"SSDescription{i}"] = std.description or ""
+        cs_count += 1
+
     # Flatten service standards
     for i in range(cs_count,20):
 
         i_active = i - cs_count
+    for i in range(cs_count,20):
+
+        i_active = i - cs_count
         # add the standard fields
+        if i_active < len(service_standards):
+            standard = service_standards[i_active]        
         if i_active < len(service_standards):
             standard = service_standards[i_active]        
         else: 
