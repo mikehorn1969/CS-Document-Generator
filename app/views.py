@@ -3,7 +3,7 @@ import os
 from app import db
 
 from flask import render_template, request, redirect, url_for, session, send_file, flash, jsonify
-from flask import Blueprint
+from flask import Blueprint, send_from_directory
 
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract
 from app.c7query import  searchC7Candidate, loadC7Clients, getContactsByCompany, gather_data,\
@@ -1547,3 +1547,12 @@ def download_sp_renewal():
     else:
         flash(f"Service Provider Service Renewal uploaded to SharePoint.", "success")
         return redirect(url_for('views.index'))
+
+
+@views_bp.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        'static',
+        'favicon.ico',
+        mimetype='image/vnd.microsoft.icon'
+    )

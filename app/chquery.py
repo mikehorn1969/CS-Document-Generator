@@ -5,6 +5,7 @@ from app.helper import load_config, formatName, debugMode
 from typing import Optional, Dict, Any
 import os
 from datetime import datetime
+from app.keyvault import get_secret
 
 
 def getCHRecord(companyNo):
@@ -63,13 +64,9 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
         print(f"{datetime.now().strftime('%H:%M:%S')} validateCH: Validating company '{ch_name}' with number '{ch_number}' and director '{director}'")
     
     # --- config --------------------------------------------------------------
-    subscription_key = os.environ.get("CH_KEY", None)
-    nameapi_key = os.environ.get("NAMEAPI_KEY", None)
-    if not subscription_key or not nameapi_key:
-        cfg = load_config()
-        subscription_key = cfg["CH_KEY"]    
-        nameapi_key = cfg["NAMEAPI_KEY"]
- 
+    subscription_key = get_secret("CHKEY")
+    nameapi_key = get_secret("NAMEAPI-KEY")
+    
     # --- helpers -------------------------------------------------------------
     def make_result(*, valid: bool, narrative: str = "", is_director: bool = False,
                     jurisdiction: Optional[str] = None, status: Optional[str] = None) -> Dict[str, Any]:
