@@ -1,7 +1,5 @@
 from __future__ import annotations
 import requests, json
-from app.classes import Config
-from app.helper import load_config, formatName, debugMode
 from app.helper import load_config, formatName, debugMode
 from typing import Optional, Dict, Any
 import os
@@ -16,10 +14,6 @@ def getCHRecord(companyNo):
     
     subscription_key = os.environ.get("CH_KEY", None)
     
-    if debugMode():
-        print(f"{datetime.now().strftime('%H:%M:%S')} getCHRecord: Fetching record for CompanyNo {companyNo}")
-    
-    subscription_key = os.environ.get("CH_KEY", None)
     if not subscription_key:
         cfg = load_config()
         subscription_key = cfg["CH_KEY"]
@@ -49,23 +43,13 @@ def searchCH(companyName):
         print(f"{datetime.now().strftime('%H:%M:%S')} searchCH: Searching for company '{companyName}'")
 
     subscription_key = os.environ.get("CH_KEY", None)
-    if debugMode():
-        print(f"{datetime.now().strftime('%H:%M:%S')} searchCH: Searching for company '{companyName}'")
-
-    subscription_key = os.environ.get("CH_KEY", None)
     if not subscription_key:
         cfg = load_config()
         subscription_key = cfg["CH_KEY"]
-        cfg = load_config()
-        subscription_key = cfg["CH_KEY"]
 
-    companyName = companyName.strip()
     companyName = companyName.strip()
     url = f"https://api.company-information.service.gov.uk/search/companies?q={companyName}"
 
-    if isinstance(subscription_key, dict):
-        subscription_key = subscription_key.get("CH_KEY", "")
-    response = requests.get(url, auth=(subscription_key, ""))
     if isinstance(subscription_key, dict):
         subscription_key = subscription_key.get("CH_KEY", "")
     response = requests.get(url, auth=(subscription_key, ""))

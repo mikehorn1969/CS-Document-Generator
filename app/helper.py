@@ -1,42 +1,18 @@
 # helper.py
 from __future__ import annotations
-
 import os
-import io
-# helper.py
-from __future__ import annotations
-
-import os
-import io
 import requests
-import paramiko
 import time
 from typing import Optional, Dict
-from sqlalchemy.exc import OperationalError
-from app.keyvault import get_secret, get_kv_client
-from docx import Document
-from flask import send_file
-from datetime import datetime
-import tempfile
-
-# local .env support
-from dotenv import load_dotenv
-import paramiko
-import time
-from typing import Optional, Dict
-from sqlalchemy.exc import OperationalError
-from app.keyvault import get_secret, get_kv_client
-from docx import Document
-from flask import send_file
-from datetime import datetime
-import tempfile
-
-# local .env support
-from dotenv import load_dotenv
-from azure.identity import DefaultAzureCredential
+from sqlalchemy.exc import OperationalError, DisconnectionError
 from app.keyvault import get_secret
+from docx import Document
+from flask import send_file
+from datetime import datetime
+import tempfile
+from azure.identity import DefaultAzureCredential
+from app import db
 
-load_dotenv()
 
 # -----------------------------
 # Public configuration loaders
@@ -245,3 +221,47 @@ def serve_docx(file_bytes: bytes, filename: str):
                 os.unlink(output.name)
         except:
             pass  # Ignore cleanup errors
+
+
+def execute_db_query_with_retry(stmt, operation_name="database query"):
+    """
+    Execute a database query with retry logic for connection issues.
+    
+    Args:
+        stmt: SQLAlchemy statement to execute
+        operation_name: Description of the operation for logging
+    
+    Returns:
+        Query results or empty list if all retries fail
+    """
+    max_retries = 3
+    retry_delay = 1  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            query_result = db.session.execute(stmt).scalars().all()
+            return query_result
+            
+        except (OperationalError, DisconnectionError) as e:
+            if debugMode():
+                print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: Database connection error on attempt {attempt + 1}: {str(e)}")
+            
+            if attempt < max_retries - 1:
+                # Close the current session to ensure clean retry
+                try:
+                    db.session.rollback()
+                except:
+                    pass
+                
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+                continue
+            else:
+                if debugMode():
+                    print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: All retry attempts failed, returning empty list")
+                return []
+        
+        except Exception as e:
+            if debugMode():
+                print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: Unexpected error: {str(e)}")
+            return []

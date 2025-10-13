@@ -1,14 +1,10 @@
-from flask import Flask, app
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate  # Tech Debt: my be able to remove
 import os, secrets
 import dotenv
-from sqlalchemy import create_engine
-from sqlalchemy import text
-from app.helper import load_config
+from sqlalchemy import create_engine, text
 from app.keyvault import get_secret
-
-from sqlalchemy.orm import sessionmaker
 
 # Initialise extensions globally
 db = SQLAlchemy()

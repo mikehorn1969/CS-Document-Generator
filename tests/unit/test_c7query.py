@@ -1,7 +1,7 @@
 # test_c7query.py
 
 import pytest
-from app.c7query import loadConfig, loadC7ContactData, loadC7ClientInformation, getContactsByCompany, getC7RequirementCandidates, getC7contract
+from app.c7query import loadConfig, loadC7ContactData, loadC7ClientInformation, getC7ContactsByCompany, getC7RequirementCandidates, getC7contract
 
 
 
@@ -32,7 +32,7 @@ def test_getC7Clients():
 def test_getContactsByCompany():
 
     company_name = "Bellrock Property and Facilities Management"
-    result = getContactsByCompany(company_name)
+    result = getC7ContactsByCompany(company_name)
 
     assert result != [], "No contacts returned"
 
