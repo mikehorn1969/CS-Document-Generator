@@ -154,8 +154,8 @@ def wait_for_db(max_wait=120, interval=5):
     waited = 0
     while waited < max_wait:
         try:
-            # Try a simple query
-            db.session.execute("SELECT 1")
+            # Check if the connection is alive
+            db.session.connection()
             print("Database is available.")
             return True
         except OperationalError:
@@ -177,6 +177,8 @@ def serve_docx(file_bytes: bytes, filename: str):
     """
     # Create temp file and keep it open
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
+    output = None
+
     try:
         # Write bytes to temp file
         tmp.write(file_bytes)
@@ -217,7 +219,7 @@ def serve_docx(file_bytes: bytes, filename: str):
         import os
         try:
             os.unlink(tmp.name)
-            if 'output' in locals():
+            if output is not None:
                 os.unlink(output.name)
         except:
             pass  # Ignore cleanup errors

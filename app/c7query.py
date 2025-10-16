@@ -1,45 +1,63 @@
 # c7query.py - Colleague 7 API queries
 
 import requests
-from app.classes import Contact, Requirement, Candidate, C7User
+from app.classes import Company, Contact, Requirement, Candidate, C7User
 from app.helper import load_config, formatName, debugMode
 import re
 from datetime import date, datetime
 from app.chquery import searchCH, getCHbasics 
 from dateutil.relativedelta import relativedelta 
-from typing import Optional
+from typing import Optional, cast
 
 
 def getC7Company(company_id):
+    """
+    Fetch company details from C7 by CompanyId. Includes custom fields and formatted address.
+    """
     
     if debugMode():
         print(f"{datetime.now().strftime('%H:%M:%S')} getC7Company: Fetching data for CompanyId {company_id}")
     
     cfg = load_config()
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
-    url = f"https://coll7openapi.azure-api.net/api/Company/Get?UserId={user_id}&CompanyId={company_id}&IncludeArchivedRecords=false"
+    request_body = {
+        "userId": user_id,
+        "allColumns": False,
+        "columns": ["CompanyId","CompanyName","CompanyEmail","TelephoneNumber","MSA Signed","Company Registration Number","AddressLine1","AddressLine2","AddressLine3","City","Postcode"],
+        "includeArchived": True,
+        "parameters": [{
+            "fieldName": "CompanyId",
+            "fieldValue": company_id
+        }]
+    }
 
-    response = requests.get(url, headers=hdr)
+    url = "https://coll7openapi.azure-api.net/api/Company/AdvancedSearch"
 
-    # Parse JSON
+    response = requests.post(url, headers=hdr, json=request_body)
+    if response.status_code != 200:
+        return {"status_code": response.status_code, "error": response.text}
+
+    # Parse JSON first
     response_json = response.json()
     
-    # Extract desired fields
-    # companyname, address
-    RawAddress = (response_json.get("AddressLine1") or "") + ", " + (response_json.get("AddressLine2") or "") + ", " + (response_json.get("AddressLine3") or "") + ", " + (response_json.get("City") or "") + ", " + (response_json.get("Postcode") or "")
+    # Check if we got results and take the first one
+    if not response_json or len(response_json) == 0:
+        return {"error": "No company found with the given ID"}
+    
+    company_data = response_json[0]  # Take the first result
+    
+    # Extract and clean up address    
+    RawAddress = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
     # Clean up address by removing empty elements and fixing comma issues
     address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
     CompanyAddress = ", ".join(address_parts)
+    
+    # Add CompanyAddress to the response object
+    company_data["CompanyAddress"] = CompanyAddress
 
-    result = {
-        "CompanyName": response_json.get("CompanyName"),
-        "CompanyAddress": CompanyAddress
-    }
-
-    return result
-
+    return company_data
 
 
 def getC7Contact(contact_id):
@@ -53,7 +71,7 @@ def getC7Contact(contact_id):
     
     cfg = load_config()
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
     url = f"https://coll7openapi.azure-api.net/api/Contact/Get?UserId={user_id}&ContactId={contact_id}&IncludeArchivedRecords=false"
 
@@ -85,11 +103,11 @@ def getC7Contact(contact_id):
 def getC7ContactsByCompany(CompanyName):
 
     if debugMode():
-        print(f"{datetime.now().strftime('%H:%M:%S')} getContactsByCompany: Searching contacts for CompanyName {CompanyName}")
+        print(f"{datetime.now().strftime('%H:%M:%S')} getC7ContactsByCompany: Searching contacts for CompanyName {CompanyName}")
 
     cfg = load_config()
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
     url = f"https://coll7openapi.azure-api.net/api/Contact/AdvancedSearch"
     body ={
@@ -151,7 +169,7 @@ def getC7Requirements(company_name,contact_name):
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
     try:               
         url = f"https://coll7openapi.azure-api.net/api/Requirement/Search?UserId={user_id}&CompanyName={company_name}&ContactName={contact_name}"
@@ -201,7 +219,7 @@ def getC7RequirementCandidates(requirementId):
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
     url = f"https://coll7openapi.azure-api.net/api/Requirement/GetRequirementCandidates?UserId={user_id}&RequirementId={requirementId}"
 
@@ -236,7 +254,7 @@ def searchC7Candidate(candidate_name):
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
     C7_candidate_name = candidate_name.split(",").strip()
     candidate_search_url = f"https://coll7openapi.azure-api.net/api/Candidate/Search?UserId={user_id}&Surname={C7_candidate_name}"
@@ -299,11 +317,12 @@ def getC7contract(candidate_id):
     dm_name = ""
     dm_email = ""
     dm_phone = ""
+    company_msa_signed = ""
 
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
     candidate_record = getC7Candidate(candidate_id)
 
@@ -368,20 +387,20 @@ def getC7contract(candidate_id):
             placedby = experience.get('placementPlacedBy', '')
 
             # get company data
+
             company_search_url = f"https://coll7openapi.azure-api.net/api/Company/Search?UserId={user_id}&CompanyName={company_name}"
             company_result = requests.get(company_search_url, headers=hdr)
             if company_result.status_code == 200:
-                companyId = company_result.json()[0]
-                company_url = f"https://coll7openapi.azure-api.net/api/Company/Get?UserId={user_id}&CompanyId={companyId}"
-                company_response = requests.get(company_url, headers=hdr)
 
-                if company_response.status_code == 200:
-                    company_data = company_response.json()                                
-                    
+                companyId = company_result.json()[0]
+                company_data = getC7Company(companyId)
+
+                if company_data:                    
                     company_email = company_data.get("CompanyEmail", "")
                     company_phone = company_data.get("TelephoneNumber", "") 
-                    company_number = company_data.get("RegistrationNumber", "")
-
+                    company_number = company_data.get("CUSTOM_Company Registration Number", "")  
+                    company_msa_signed = company_data.get("CUSTOM_MSA Signed", "") 
+                    
                     # serch Companies House API using name and company number (fetch company number from CH if it's missing) 
                     # populate registered address when a match is found
                     if company_number == None:
@@ -422,27 +441,15 @@ def getC7contract(candidate_id):
             notice_period_unit = experience.get('noticePeriodUOM', '')
             fees = experience.get('placementPayRate', 0.0)
             charges = experience.get('placementChargeRate', 0.0)
-            description = experience.get('jobTitle', '')
-            payload = []
-
-            if C7User.count() == 0:
-                payload = loadC7Users()
-            else:
-                payload = C7User.get_all_users()
-
-            if isinstance(payload,list):
-                if len(payload) != 0:
-                            
-                    foundit = False
-                    for user in payload:
-                        if user.userid == placedby:
-                            dm_jobtitle = user.jobTitle
-                            dm_name = user.username
-                            dm_email = user.emailAddress
-                            foundit = True
-                        if foundit:
-                            break
+            description = experience.get('jobTitle', '')            
             
+            placedbyuser = loadC7Users(placedby)
+
+            if placedbyuser:
+                dm_name = placedbyuser.username
+                dm_jobtitle = placedbyuser.jobTitle
+                dm_email = placedbyuser.emailAddress
+
             # break out of experience loop once we have processed the relevant placement
             break
 
@@ -489,7 +496,8 @@ def getC7contract(candidate_id):
                 "dmname": dm_name,
                 "dmtitle": dm_jobtitle,
                 "dmemail": dm_email,
-                "dmphone": dm_phone
+                "dmphone": dm_phone,
+                "companymsasigned": company_msa_signed
             }
 
 
@@ -578,7 +586,7 @@ def gatherC7data(session_contract):
     return contract
 
 
-def getC7Candidate(candidate_id, search_term: Optional[str] = None):
+def getC7Candidate(candidate_id, search_term: Optional[str] = None) -> dict: 
 
     if debugMode():
         print(f"{datetime.now().strftime('%H:%M:%S')} getC7Candidate: Fetching data for CandidateId {candidate_id} with search term '{search_term}'")
@@ -588,56 +596,59 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
     candidate_phone = ""
     candidate_email = ""
     candidate_surname = ""
-    candidate_reg_number = ""
-    candidate_ltd_name = ""
+    candidate_reg_number = None
+    candidate_ltd_name = None
     candidate_jurisdiction = ""
     candidate_address = ""
     candidate_reg_address = ""
+    msa_signed_date = None
 
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
     candidate_url = f"https://coll7openapi.azure-api.net/api/Candidate/Get?UserId={user_id}&candidateId={candidate_id}"
     candidate_response = requests.get(candidate_url, headers=hdr)
 
     # move on to next candidate if no record found - very unlikely?
-    if candidate_response.status_code == 200:
+    if candidate_response.status_code != 200:
+        return {candidate_response.status_code: candidate_response.text}
         
-        candidate_data = candidate_response.json()
+    candidate_data = candidate_response.json()
 
-        # SEARCH_TERM is optional - if provided, only return data if surname matches
-        # it is only passed when searching for a candidate
-        if search_term is None or ( search_term.lower() in candidate_data.get('Surname', '').lower() ):
+    # SEARCH_TERM is optional - if provided, only return data if surname matches
+    # it is only passed when searching for a candidate
+    if search_term is None or ( search_term.lower() in candidate_data.get('Surname', '').lower() ):
 
-            candidate_name = f"{candidate_data.get('Surname', '')}, {candidate_data.get('Forenames', '')}"
-            candidate_phone = candidate_data.get('MobileNumber', '')
-            candidate_email = candidate_data.get('EmailAddress', '')
-            candidate_surname = candidate_data.get('Surname', '')
-            RawAddress = (candidate_data.get("AddressLine1") or "") + ", " + (candidate_data.get("AddressLine2") or "") + ", " + \
-                         (candidate_data.get("AddressLine3") or "") + ", " + (candidate_data.get("City") or "") + ", " + \
-                         (candidate_data.get("County") or "") + ", " + (candidate_data.get("Postcode") or "")
-            # Clean up address by removing empty elements and fixing comma issues
-            address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
-            candidate_address = ", ".join(address_parts)
-            
-            # Find the value for CompanyRegistrationNumber
-            candidate_reg_number = next(
-                (field["Value"] for field in candidate_data["CustomFields"] if field["Name"] == "CompanyRegistrationNumber"),
-                    None
-                )
-            candidate_ltd_name = next(
-                (field["Value"] for field in candidate_data["CustomFields"] if field["Name"] == "NameOfLimitedCompany"),
-                    None
-                )
-            
-            # for candiate-specific calls, search Companies House API using name and company number
-            # populate registered address when a match is found
-            if search_term is None and (candidate_ltd_name and candidate_reg_number):
-                candidate_reg_address, candidate_jurisdiction = getCHbasics(candidate_ltd_name.strip(), candidate_reg_number.strip())
-                if candidate_jurisdiction == "england-wales":
-                    candidate_jurisdiction = "England and Wales"
+        candidate_name = f"{candidate_data.get('Surname', '')}, {candidate_data.get('Forenames', '')}"
+        candidate_phone = candidate_data.get('MobileNumber', '')
+        candidate_email = candidate_data.get('EmailAddress', '')
+        candidate_surname = candidate_data.get('Surname', '')
+        RawAddress = (candidate_data.get("AddressLine1") or "") + ", " + (candidate_data.get("AddressLine2") or "") + ", " + \
+                        (candidate_data.get("AddressLine3") or "") + ", " + (candidate_data.get("City") or "") + ", " + \
+                        (candidate_data.get("County") or "") + ", " + (candidate_data.get("Postcode") or "")
+        # Clean up address by removing empty elements and fixing comma issues
+        address_parts = [part.strip() for part in RawAddress.split(',') if part.strip()]
+        candidate_address = ", ".join(address_parts)
+        
+        # Extract custom fields
+        for field in candidate_data["CustomFields"]:
+            if field["Name"] == "MSA Signed":
+                msa_signed_date = field["Value"]
+            elif field["Name"] == "CompanyRegistrationNumber":
+                candidate_reg_number = field["Value"]
+            elif field["Name"] == "NameOfLimitedCompany":
+                candidate_ltd_name = field["Value"]
+            if msa_signed_date and candidate_reg_number and candidate_ltd_name:
+                break
+
+        # for candiate-specific calls, search Companies House API using name and company number
+        # populate registered address when a match is found
+        if search_term is None and (candidate_ltd_name and candidate_reg_number):
+            candidate_reg_address, candidate_jurisdiction = getCHbasics(candidate_ltd_name.strip(), candidate_reg_number.strip())
+            if candidate_jurisdiction == "england-wales":
+                candidate_jurisdiction = "England and Wales"
             
     return {
         "candidateId": candidate_id,
@@ -649,38 +660,47 @@ def getC7Candidate(candidate_id, search_term: Optional[str] = None):
         "registration_number": candidate_reg_number,
         "ltd_name": candidate_ltd_name,
         "candidateregaddress": candidate_reg_address,
-        "jurisdiction": candidate_jurisdiction.capitalize()
+        "jurisdiction": candidate_jurisdiction.capitalize(),
+        "msasigned": msa_signed_date
     }
 
 
-def loadC7Users():
+def loadC7Users(C7UserId: str) -> C7User | None:
     
-    if debugMode():
-        print(f"{datetime.now().strftime('%H:%M:%S')} loadC7Users: Fetching all users")
-    
-    cfg = load_config()
+    if C7User.count() == 0:
 
-    user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+        UserId = ""
+        Email = ""
+        UserName = ""
+        JobTitle = ""
+        
+        if debugMode():
+            print(f"{datetime.now().strftime('%H:%M:%S')} loadC7Users: Fetching all users")
+        
+        cfg = load_config()
+        user_id = cfg["C7_USERID"]
+        hdr = cast(dict[str, str], cfg["C7_HDR"])
 
-    url = f"https://coll7openapi.azure-api.net/api/User/Get?UserId={user_id}"        
-    response = requests.get(url, headers=hdr)
+        url = f"https://coll7openapi.azure-api.net/api/User/Get?UserId={user_id}"
+        response = requests.get(url, headers=hdr)
 
-    # Read and decode response
-    response_json = response.json()
+        if response.status_code != 200:
+            return None
 
-    # Extract desired fields
-    # userid, email, username & jobtitle
-    for item in response_json:
-        UserId = item.get("Userid", "")
-        Email = item.get("EmailAddress", "")
-        UserName = item.get("Username", "")
-        JobTitle = item.get("JobTitle", "")
+        response_json = response.json()
 
-        # create a new User instance
-        new_user = C7User(UserId, Email, UserName, JobTitle)
+        # Extract desired fields
+        # userid, email, username & jobtitle
+        for item in response_json:
+            UserId = item.get("Userid", "")
+            Email = item.get("EmailAddress", "")
+            UserName = item.get("Username", "")
+            JobTitle = item.get("JobTitle", "")
 
-    return C7User.get_all_users()
+            # create a new User instance
+            new_user = C7User(UserId, Email, UserName, JobTitle)
+
+    return C7User.find_by("userid", C7UserId)
 
 
 def getC7Candidates(query):
@@ -692,7 +712,7 @@ def getC7Candidates(query):
     cfg = load_config()
 
     user_id = cfg["C7_USERID"]
-    hdr = cfg["C7_HDR"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
 
     # Build request
     payload = []
@@ -707,3 +727,55 @@ def getC7Candidates(query):
     return payload
 
 
+def loadC7Clients() -> list[Company] | None:
+    
+    if Company.count() == 0:
+
+        company_id = ""
+        company_name = ""
+        company_address = ""
+        company_email = ""
+        company_phone = ""
+        company_number = ""
+        company_jurisdiction = ""
+
+        if debugMode():
+            print(f"{datetime.now().strftime('%H:%M:%S')} loadC7Clients: Fetching all clients")
+        
+        cfg = load_config()
+        user_id = cfg["C7_USERID"]
+        hdr = cast(dict[str, str], cfg["C7_HDR"])
+        body ={
+            "userId": user_id,
+            "allColumns": False,
+            "columns": ["CompanyName","CompanyID"],
+            "includeArchived": False,
+            "parameters": [{
+                "fieldName": "DateCreated",
+                "fieldValue": "1 Jan 2010"
+            }]
+        }
+
+        url = "https://coll7openapi.azure-api.net/api/Company/AdvancedSearch"
+        response = requests.post(url, headers=hdr, json=body)
+
+        if response.status_code != 200:
+            return None
+
+        response_json = response.json()
+
+        # Extract desired fields
+        # userid, email, username & jobtitle
+        for item in response_json:
+            company_id = item.get("CompanyID", "")
+            company_name = item.get("CompanyName", "")
+            company_address = item.get("CompanyAddress", "")
+            company_email = item.get("CompanyEmail", "")
+            company_phone = item.get("CompanyPhone", "")
+            company_number = item.get("CompanyNumber", "")
+            company_jurisdiction = item.get("CompanyJurisdiction", "")
+
+            # create a new User instance
+            new_client = Company(company_id, company_name, company_address, company_email, company_phone, company_number, company_jurisdiction)
+
+    return Company.get_all_companies()

@@ -7,7 +7,7 @@ from flask import Blueprint, send_from_directory
 
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract
 from app.c7query import  searchC7Candidate, getC7ContactsByCompany, gatherC7data,\
-    getC7Candidate, getC7Candidates, getC7Contact
+    getC7Candidate, getC7Candidates, getC7Contact, loadC7Clients
 from app.dbquery import loadServiceStandards, loadServiceArrangements
 from app.chquery import validateCH, searchCH
 from app.classes import Company
@@ -212,10 +212,11 @@ def set_servicestandards():
                 select(ServiceContract).where(ServiceContract.sid == service_id)
             )
             if not contract_record:
-                contract_record = ServiceContract(sid=service_id, context=context)
+                contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions, context=context)
                 db.session.add(contract_record)
             else:
                 contract_record.context = context
+                contract_record.specialconditions = specialconditions
 
             # Commit all changes once
             db.session.commit()
@@ -388,8 +389,7 @@ def download_client_contract():
     contact_id = contract.get("contactid", 0)
     if contact_id == 0:
         contact_id = request.form.get('contactId', 0)
-        contact = getC7Contact(contact_id)
-        if contact:
+        if contact_id != 0:
             contract['contactid'] = contact_id
             clientcontact = getC7Contact(contact_id)
             if clientcontact:
@@ -1000,12 +1000,7 @@ def fetch_clients(query: str) -> List[dict]:
     if cached is not None:
         return cached
 
-    payload = []
-    if Company.count() == 0:
-        payload = loadC7Clients()
-    else:
-        payload = Company.get_all_companies()
-    
+    payload: list[Company] | None = loadC7Clients()
     results: List[dict] = []
 
     if isinstance(payload,list):
@@ -1444,7 +1439,7 @@ def download_sp_renewal():
                       "ContactName", "ContactTitle", "ContactEmail", "ContactPhone", "ContactAddress",  
                       "ServiceStart", "ServiceEnd", "Duration", "NoticePeriod", "NoticeUOM",
                       "dmname", "dmtitle", "dmemail", "dmphone"]
-
+    
     for raw_field, column_name in zip(fields, export_columns):
 
         field = ""
