@@ -221,7 +221,9 @@ def set_servicestandards():
             # Commit all changes once
             db.session.commit()
 
+            
     # (re)load for display 
+    standards = loadServiceStandards(service_id) 
     return render_template('standards.html', contract=contract, standards=standards, which=which)
 
 
@@ -461,15 +463,14 @@ def download_client_contract():
         if i < len(service_standards):
             standard = service_standards[i]        
         else: 
-            standard = {}
+            standard = None
 
-        for field, column_name in zip(std_fields, std_export_columns):
-            f_column_name = f"{column_name}{i}"
-
-            if standard:
-                row[f_column_name] = standard.get(field, '')
-            else:
-                row[f_column_name] = ''
+        if standard:
+            row[f"SSN{i}"] = getattr(standard, 'ssn', '') if hasattr(standard, 'ssn') else standard.get('ssn', '')
+            row[f"SSDescription{i}"] = getattr(standard, 'description', '') if hasattr(standard, 'description') else standard.get('description', '')
+        else:
+            row[f"SSN{i}"] = ''
+            row[f"SSDescription{i}"] = ''
 
     # Flatten arrangements
     for arr in arrangements:
@@ -554,6 +555,7 @@ def download_client_renewal():
         
     contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
     special_conditions = contract_record.specialconditions if contract_record else ''
+    context = contract_record.context if contract_record else ''
     
     # Build rows
     data_rows = []
@@ -578,6 +580,7 @@ def download_client_renewal():
     
     for raw_field, column_name in zip(fields, export_columns):
 
+        field = ""
         if raw_field == "companyjurisdiction":
             tmp_field = contract.get(raw_field,"")
             if tmp_field.strip().lower() == "england-wales":
@@ -585,11 +588,13 @@ def download_client_renewal():
             else:
                 field = contract.get(raw_field, '')
         # Tech debt: hard coded AD details        
-        if (raw_field == "dmphone" ):
+        elif (raw_field == "dmphone" ):
             field = "01379 871144"    
+
         row[column_name] = field
 
     row["SpecialConditions"] = special_conditions
+    row["Context"] = context
 
     std_fields = ["ssn", "description"]
     std_export_columns = ["SSN", "SSDescription"]
@@ -601,15 +606,14 @@ def download_client_renewal():
         if i < len(service_standards):
             standard = service_standards[i]        
         else: 
-            standard = {}
+            standard = None
 
-        for field, column_name in zip(std_fields, std_export_columns):
-            f_column_name = f"{column_name}{i}"
-
-            if standard:
-                row[f_column_name] = standard.get(field, '')
-            else:
-                row[f_column_name] = ''
+        if standard:
+            row[f"SSN{i}"] = getattr(standard, 'ssn', '') if hasattr(standard, 'ssn') else standard.get('ssn', '')
+            row[f"SSDescription{i}"] = getattr(standard, 'description', '') if hasattr(standard, 'description') else standard.get('description', '')
+        else:
+            row[f"SSN{i}"] = ''
+            row[f"SSDescription{i}"] = ''
 
     # Flatten arrangements
     for arr in arrangements:
@@ -1259,7 +1263,7 @@ def download_sp_contract():
     # Ensure service standards and arrangements are loaded
     service_standards = session.get('serviceStandards')
     if not service_standards:
-        service_standards = loadServiceStandards(service_id)
+        service_standards = loadServiceStandards(service_id) or []
 
     arrangements = session.get('serviceArrangements', loadServiceArrangements(service_id))        
     agreement_date = request.form.get('AgreementDate', '')
@@ -1269,6 +1273,7 @@ def download_sp_contract():
 
     contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
     special_conditions = contract_record.specialconditions if contract_record else ''
+    context = contract_record.context if contract_record else ''
 
     # Build rows
     data_rows = []
@@ -1304,6 +1309,7 @@ def download_sp_contract():
         row[column_name] = field
 
     row["SpecialConditions"] = special_conditions
+    row["Context"] = context
 
     std_fields = ["ssn", "description"]
     std_export_columns = ["SSN", "SSDescription"]
@@ -1316,22 +1322,21 @@ def download_sp_contract():
         cs_count += 1
 
     # Flatten service standards
-    for i in range(cs_count,20):
+    for i in range(cs_count + 1, 20):
 
-        i_active = i - cs_count + 1
+        i_active = i - cs_count - 1
         # add the standard fields
         if i_active < len(service_standards):
             standard = service_standards[i_active]        
         else: 
-            standard = {}
+            standard = None
 
-        for field, column_name in zip(std_fields, std_export_columns):
-            f_column_name = f"{column_name}{i}"
-
-            if standard:
-                row[f_column_name] = standard.get(field, '')
-            else:
-                row[f_column_name] = ''
+        if standard:
+            row[f"SSN{i}"] = getattr(standard, 'ssn', '') if hasattr(standard, 'ssn') else standard.get('ssn', '')
+            row[f"SSDescription{i}"] = getattr(standard, 'description', '') if hasattr(standard, 'description') else standard.get('description', '')
+        else:
+            row[f"SSN{i}"] = ''
+            row[f"SSDescription{i}"] = ''
 
     # Flatten arrangements
     for arr in arrangements:
@@ -1420,6 +1425,7 @@ def download_sp_renewal():
 
     contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
     special_conditions = contract_record.specialconditions if contract_record else ''
+    context = contract_record.context if contract_record else ''
 
     # Build rows
     data_rows = []
@@ -1455,6 +1461,7 @@ def download_sp_renewal():
         row[column_name] = field
 
     row["SpecialConditions"] = special_conditions
+    row["Context"] = context
 
     std_fields = ["ssn", "description"]
     std_export_columns = ["SSN", "SSDescription"]
@@ -1474,15 +1481,14 @@ def download_sp_renewal():
         if i_active < len(service_standards):
             standard = service_standards[i_active]        
         else: 
-            standard = {}
+            standard = None
 
-        for field, column_name in zip(std_fields, std_export_columns):
-            f_column_name = f"{column_name}{i}"
-
-            if standard:
-                row[f_column_name] = standard.get(field, '')
-            else:
-                row[f_column_name] = ''
+        if standard:
+            row[f"SSN{i}"] = getattr(standard, 'ssn', '') if hasattr(standard, 'ssn') else standard.get('ssn', '')
+            row[f"SSDescription{i}"] = getattr(standard, 'description', '') if hasattr(standard, 'description') else standard.get('description', '')
+        else:
+            row[f"SSN{i}"] = ''
+            row[f"SSDescription{i}"] = ''
 
     # Flatten arrangements
     for arr in arrangements:

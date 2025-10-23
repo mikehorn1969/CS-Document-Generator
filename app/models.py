@@ -12,6 +12,11 @@ class ServiceStandard(db.Model):
     ssn = db.Column(String(10))
     description = db.Column(String(255))
 
+    def __init__(self, sid=None, ssn=None, description=None):
+        self.sid = sid
+        self.ssn = ssn
+        self.description = description
+
     def to_dict(self):
         return {
             "stdid": self.stdid,
@@ -34,6 +39,14 @@ class ServiceArrangement(db.Model):
     atclientlocation = db.Column(String(255))
     atotherlocation = db.Column(String(255))
 
+    def __init__(self, sid=None, day=None, defaultserviceperiod=None, atservicebase=None, atclientlocation=None, atotherlocation=None):
+        self.sid = sid
+        self.day = day
+        self.defaultserviceperiod = defaultserviceperiod
+        self.atservicebase = atservicebase
+        self.atclientlocation = atclientlocation
+        self.atotherlocation = atotherlocation
+
     def to_dict(self):
         return {
             "arrid": self.arrid,
@@ -55,9 +68,22 @@ class ServiceContract(db.Model):
     sid = db.Column(String(10))    
     specialconditions = db.Column(Text)
     context = db.Column(Text)
-
-
-
     
+    def __init__(self, sid=None, specialconditions=None, context=None):
+        self.sid = sid
+        self.specialconditions = specialconditions
+        self.context = context
+
+    def to_dict(self):
+        return {
+            "conid": self.conid,
+            "sid": self.sid,
+            "specialconditions": self.specialconditions,
+            "context": self.context
+        }
+
+
+
+
 
 
