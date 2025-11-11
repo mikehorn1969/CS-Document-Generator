@@ -122,7 +122,6 @@ def downloadFromSharePoint(folder_path: str, filename: str) -> Optional[bytes]:
 
     site_name = get_secret('SP-SITE-NAME')
     site_domain = get_secret('SP-SITE-DOMAIN')
-    library = get_secret('SP-LIBRARY')
 
     # Get Site ID
     site_url = f'https://graph.microsoft.com/v1.0/sites/{site_domain}:/sites/{site_name}'
@@ -135,7 +134,7 @@ def downloadFromSharePoint(folder_path: str, filename: str) -> Optional[bytes]:
     site_id = site_response.json()['id']
 
     # Download file
-    download_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{library}/{folder_path}/{filename}'
+    download_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{folder_path}/{filename}'
     print(f"Downloading from URL: {download_url}")
 
     download_response = requests.get(download_url, headers={

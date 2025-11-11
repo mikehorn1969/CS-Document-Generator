@@ -24,7 +24,7 @@
                 <label for="candidate-name" class="index-label"><strong>Name</strong></label>    
                 <div>
                     <input type="text" id="candidate-name" name="candidate-name" placeholder="Begin typing a surname..." autocomplete="off" \
-                        class="name-textbox" value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}" required >                    
+                        class="name-textbox" value="{{ contract['candidateName'] if contract and contract.get('candidateName') else '' }}" readonly>                    
                     <div id="suggestions"></div>
                 </div>        
             </div>
@@ -50,59 +50,11 @@
                 <div>
                     <input type="text" name="address" id="address" placeholder="SP Address" class="address-textbox" \
                         value="{{ contract['candidateaddress'] if contract and contract.get('candidateaddress') else '' }}" \
-                        required >
+                        readonly>
                 </div>
             </div>                
         </div>
     </div>
 </form>
-
-<script>
-    $(document).ready(function() {
-        $("#candidate-name").on("input", function() {
-            let query = $(this).val();
-            if (query.length > 2) {
-                $.getJSON("/searchcandidates", { q: query }, function (data) {
-                    const $sugs = $("#suggestions").empty();
-                    data.forEach(function (item) {
-                        const $row = $('<div class="candidate-suggestion"></div>')
-                        .text(item.candidateName)
-                        .data({                            
-                            candidateAddress: item.candidateAddress || "",
-                            candidateId: item.candidateId || "",
-                            candidateEmail: item.candidateEmail || ""
-                        });
-                        $sugs.append($row);
-                    });
-                });
-
-            } else {
-                $("#suggestions").empty();
-            }
-        });
-
-       $("#suggestions").on("click", ".candidate-suggestion", function() {
-            const $s = $(this);
-            $("#candidate-name").val($s.text());            
-            $("#address").val($s.data("candidateAddress"));
-            $("#candidateId").val($s.data("candidateId"));
-            $("#candidate-email").val($s.data("candidateEmail"));
-            
-            const payload = { candidateId: $s.data("candidateId") };
-
-            $("#suggestions").empty();
-            document.body.classList.add('loading');
-            
-            $.ajax({
-                url: "/contract/candidate",
-                method: "POST",
-                contentType: "application/json",
-                data: JSON.stringify(payload)
-            }).fail(xhr => console.error("Save failed:", xhr.responseText));
-
-            document.body.classList.remove('loading');
-        });
-    });
-</script>
 
 {% endblock %}

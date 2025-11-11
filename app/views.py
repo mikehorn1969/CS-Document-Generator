@@ -698,9 +698,14 @@ def prepare_sp_nda():
     Load the Service Provider NDA page.
     """
     session_contract = session.get('sessionContract') or None
+    in_error = False
+    flash_messages = []
 
     if not session_contract:
         flash("Select a Service Provider before continuing.", "error")
+    
+    if in_error:
+
         return redirect(url_for('views.index'))
 
     return render_template('spnda.html', contract=session_contract)
@@ -1141,15 +1146,17 @@ def download_sp_nda():
     data_rows = []
     row = {}
     row["AgreementDate"] = f_agreement_date
-    fields = ["candidateName", "candidateaddress", "candidateemail"]
+    fields = ["candidateName", "candidateaddress", "candidateemail", "dmname"]
     
-    export_columns = ["CandidateName", "CandidateAddress", "CandidateEmail"]
+    export_columns = ["CandidateName", "CandidateAddress", "CandidateEmail", "DMName"]
     
     # Populate row with contract fields    
     # making any neccessary substitutions
     for raw_field, column_name in zip(fields, export_columns):
         if ( raw_field == "candidateName" ):
             field = formatName(contract.get(raw_field,''))
+        elif (raw_field == "candidateemail") and 'candidate-email' in request.form:
+            field = request.form.get('candidate-email','')
         else:
             field = contract.get(raw_field, '')
 

@@ -71,8 +71,10 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
     
     # --- config --------------------------------------------------------------
     subscription_key = get_secret("CHKEY")
-    nameapi_key = get_secret("NAMEAPI-KEY")
-    
+    name_prefix = get_secret("NAMEAPI-KEYPREFIX")
+    name_suffix = get_secret("NAMEAPI-KEYSUFFIX")
+    nameapi_key = f"{name_prefix}-{name_suffix}"
+        
     # --- helpers -------------------------------------------------------------
     def make_result(*, valid: bool, narrative: str = "", is_director: bool = False,
                     jurisdiction: Optional[str] = None, status: Optional[str] = None) -> Dict[str, Any]:
