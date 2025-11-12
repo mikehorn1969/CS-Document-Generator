@@ -17,16 +17,10 @@ def getCHRecord(companyNo):
     if not subscription_key:
         cfg = load_config()
         subscription_key = cfg["CH_KEY"]
-    
-        cfg = load_config()
-        subscription_key = cfg["CH_KEY"]
-    
+        
     sCompanyNo = companyNo.strip()
-    url = f"https://api.companieshouse.gov.uk/company/{sCompanyNo}"
+    url = f"https://api.company-information.service.gov.uk/company/{sCompanyNo}"
 
-    if isinstance(subscription_key, dict):
-        subscription_key = subscription_key.get("CH_KEY", "")
-    response = requests.get(url, auth=(subscription_key, ""))
     if isinstance(subscription_key, dict):
         subscription_key = subscription_key.get("CH_KEY", "")
     response = requests.get(url, auth=(subscription_key, ""))
@@ -132,10 +126,34 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
     # --- 2) pull full record and check status -------------------------------
     company_record = getCHRecord(reg_number)
     jurisdiction = company_record.get("jurisdiction")
-    company_status = company_record.get("company_status")
-
+    company_status = company_record.get("company_status")    
     if company_status != "active":
         return make_result(valid=False, narrative=f"{ch_name} is not Active", jurisdiction=jurisdiction, status=company_status)
+
+    accounts_overdue = company_record.get("accounts", {}).get("overdue", False)
+    if accounts_overdue:
+        return make_result(valid=False, narrative=f"Accounts are overdue for {ch_name}", jurisdiction=jurisdiction, status=company_status)
+    
+    annual_return_overdue = company_record.get("annual_return", {}).get("overdue", False)
+    if annual_return_overdue:
+        return make_result(valid=False, narrative=f"Annual Return is overdue for {ch_name}", jurisdiction=jurisdiction, status=company_status)
+    
+    has_charges = company_record.get("has_charges", False)
+    if has_charges:
+        return make_result(valid=False, narrative=f"{ch_name} has outstanding charges", jurisdiction=jurisdiction, status=company_status)
+    
+    has_been_liquidated = company_record.get("has_been_liquidated", False)
+    if has_been_liquidated:
+        return make_result(valid=False, narrative=f"{ch_name} has been liquidated", jurisdiction=jurisdiction, status=company_status)
+    
+    has_insolvency_history = company_record.get("has_insolvency_history", False)
+    if has_insolvency_history:
+        return make_result(valid=False, narrative=f"{ch_name} has insolvency history", jurisdiction=jurisdiction, status=company_status)
+    
+    registered_office_is_in_dispute = company_record.get("registered_office_is_in_dispute", False)
+    if registered_office_is_in_dispute:
+        return make_result(valid=False, narrative=f"Registered office of {ch_name} is in dispute", jurisdiction=jurisdiction, status=company_status)
+
 
     # --- 3) if a director is supplied, verify they are an active director ----
 
@@ -143,7 +161,7 @@ def validateCH(ch_number: str, ch_name: str, director: Optional[str] = None) -> 
 
         search_director = formatName(director_input) 
 
-        officers_url = f"https://api.companieshouse.gov.uk/company/{reg_number}/officers?filter=active"
+        officers_url = f"https://api.company-information.service.gov.uk/company/{reg_number}/officers?filter=active"
         resp = requests.get(officers_url, auth=(subscription_key, ""))
         resp.raise_for_status()
         officers_json = resp.json()
