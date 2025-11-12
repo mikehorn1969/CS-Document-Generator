@@ -827,19 +827,6 @@ def download_client_msa():
     if agreement_date != '':
         f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
         f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
-
-
-    if "btPreview" in request.form:
-        target_folder = "Templates/Business templates/Service Provider Templates"
-        target_file = "Client MSA - AUTOMATED MASTER.docx"
-        
-        file_bytes = downloadFromSharePoint(target_folder, target_file)
-        
-        if not file_bytes:
-            flash("Failed to download Client MSA template from SharePoint.", "error")
-            return redirect(url_for('views.index'))
-        
-        return serve_docx(file_bytes, "Client MSA - AUTOMATED MASTER.docx")
         
     # Build rows
     data_rows = []
@@ -1130,6 +1117,8 @@ def set_contract_candidate():
 
 @views_bp.route('/download_sp_nda', methods=['POST'])
 def download_sp_nda():
+    """
+    Preview the merged NDA or create an excel data file for merging into a Service Provider NDA document."""
 
     # Get session data
     contract = session.get('sessionContract', {})
@@ -1138,78 +1127,102 @@ def download_sp_nda():
         return redirect(url_for('views.index'))
 
     agreement_date = request.form.get('AgreementDate', '')
-    
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    # Build rows
-    data_rows = []
-    row = {}
-    row["AgreementDate"] = f_agreement_date
-    fields = ["candidateName", "candidateaddress", "candidateemail", "dmname"]
+    action = request.form.get('action', '')
+
+    if action == "Preview":
+        target_folder = "Templates/Business templates/Service Provider Templates"
+        target_file = "Service Provider NDA AUTOMATED MASTER.docx"
+        candidate_name = request.form.get('candidate-name', '')
+        candidate_address = request.form.get('address', '')
+        candidate_email = request.form.get('candidate-email', '')
+
+        file_bytes = downloadFromSharePoint(target_folder, target_file)
+        
+        if not file_bytes:
+            flash("Failed to download Service Provider NDA template from SharePoint.", "error")
+            return redirect(url_for('views.index'))
+
+        replacements = {
+            '{{DocDate}}': f_agreement_date,            
+            '{{SPName}}': candidate_name,
+            '{{SPAddress}}': candidate_address,
+            '{{SigName}}': candidate_name
+        }
+
+        return serve_docx(file_bytes, target_file, replacements)
     
-    export_columns = ["CandidateName", "CandidateAddress", "CandidateEmail", "DMName"]
-    
-    # Populate row with contract fields    
-    # making any neccessary substitutions
-    for raw_field, column_name in zip(fields, export_columns):
-        if ( raw_field == "candidateName" ):
-            field = formatName(contract.get(raw_field,''))
-        elif (raw_field == "candidateemail") and 'candidate-email' in request.form:
-            field = request.form.get('candidate-email','')
-        else:
-            field = contract.get(raw_field, '')
+    elif action == "Submit":
+        # Build rows
+        data_rows = []
+        row = {}
+        row["AgreementDate"] = f_agreement_date
+        fields = ["candidateName", "candidateaddress", "candidateemail", "dmname"]
+        
+        export_columns = ["CandidateName", "CandidateAddress", "CandidateEmail", "DMName"]
+        
+        # Populate row with contract fields    
+        # making any neccessary substitutions
+        for raw_field, column_name in zip(fields, export_columns):
+            if ( raw_field == "candidateName" ):
+                field = formatName(contract.get(raw_field,''))
+            elif (raw_field == "candidateemail") and 'candidate-email' in request.form:
+                field = request.form.get('candidate-email','')
+            else:
+                field = contract.get(raw_field, '')
 
-        row[column_name] = field
-            
-    data_rows.append(row)
+            row[column_name] = field
+                
+        data_rows.append(row)
 
-    # Create DataFrame
-    df = pd.DataFrame(data_rows)
+        # Create DataFrame
+        df = pd.DataFrame(data_rows)
 
-    # Write to Excel in-memory
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
+        # Write to Excel in-memory
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Sheet1')
 
-    output.seek(0)
-    wb = load_workbook(output)
-    ws = wb['Sheet1']
+        output.seek(0)
+        wb = load_workbook(output)
+        ws = wb['Sheet1']
 
-    # add table
-    df_rows = len(df) + 1
-    df_cols = len(df.columns)
-    df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
+        # add table
+        df_rows = len(df) + 1
+        df_cols = len(df.columns)
+        df_range = f"A1:{get_column_letter(df_cols)}{df_rows}"
 
-    table1 = Table(displayName="Table1", ref=df_range)
-    table1.tableStyleInfo = TableStyleInfo(
-        name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
-    )
-    ws.add_table(table1)
-
-    # Save final output
-    final_output = BytesIO()
-    wb.save(final_output)
-    final_output.seek(0)
-
-    # Upload to SharePoint
-    target_url = "Docusign"
-    download_name=f"{contract.get('candidateltdname')} Service Provider NDA SNDA.xlsx"
-
-    file_bytes = final_output.getvalue()
-    uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
-
-    if uploaded_file not in (200, 201):  
-        flash(f"Failed to upload Service Provider NDA to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
-        return send_file(
-            final_output,
-            as_attachment=True,
-            download_name=download_name,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        table1 = Table(displayName="Table1", ref=df_range)
+        table1.tableStyleInfo = TableStyleInfo(
+            name="TableStyleMedium9", showRowStripes=False, showColumnStripes=False
         )
-    else:
-        flash(f"Service Provider NDA uploaded to SharePoint.", "success")
-        return redirect(url_for('views.index'))
+        ws.add_table(table1)
+
+        # Save final output
+        final_output = BytesIO()
+        wb.save(final_output)
+        final_output.seek(0)
+
+        # Upload to SharePoint
+        target_url = "Docusign"
+        download_name=f"{contract.get('candidateltdname')} Service Provider NDA SNDA.xlsx"
+
+        file_bytes = final_output.getvalue()
+        uploaded_file = uploadToSharePoint(file_bytes, download_name, target_url)
+
+        if uploaded_file not in (200, 201):  
+            flash(f"Failed to upload Service Provider NDA to SharePoint folder {target_url}. Error code {uploaded_file}", "error")
+            return send_file(
+                final_output,
+                as_attachment=True,
+                download_name=download_name,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+        else:
+            flash(f"Service Provider NDA uploaded to SharePoint.", "success")
+            return redirect(url_for('views.index'))
 
 
 @views_bp.route('/spcontract', methods=['GET', 'POST'])

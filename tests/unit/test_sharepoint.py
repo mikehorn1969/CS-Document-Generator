@@ -11,9 +11,8 @@ from app.helper import downloadFromSharePoint, serve_docx
 
 def test_downloadFromSharePoint():
     
-    #target_folder = "Mike/Merge Templates"
-    target_folder = "Common/Templates/Business templates/Service Provider Templates"
-    target_file = "Client MSA - AUTOMATED MASTER.docx"
+    target_folder = "Templates/Business templates/Service Provider Templates"
+    target_file = "Service Provider NDA AUTOMATED MASTER.docx"
     
     file_bytes = downloadFromSharePoint(target_folder, target_file)
     
@@ -21,8 +20,4 @@ def test_downloadFromSharePoint():
     assert isinstance(file_bytes, bytes)
     assert len(file_bytes) > 0
     
-    
-
-    
-""" if __name__ == "__main__":
-    test_downloadFromSharePoint() """
+    return serve_docx(file_bytes, target_file)

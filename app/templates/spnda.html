@@ -32,7 +32,8 @@
                 <input type='hidden' name='candidateId' id="candidateId">
             </div>
             <div>
-                <input type="submit" class="button" id="submit-btn" value="Submit">
+                <input type="submit" name="action" value="Preview" class="button" id="preview-btn">
+                <input type="submit" name="action" value="Submit" class="button" id="submit-btn">
                 <a href="{{ url_for('views.index') }}" class="button">Back</a>
             </div>        
         </div>
