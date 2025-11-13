@@ -3,7 +3,26 @@
 {% extends "base.html" %}
 
 {% block head %}
-    {{ super() }}    
+    {{ super() }}
+    <meta http-equiv="refresh" content="3">
+    <script>
+        // Alternative AJAX-based refresh (optional)
+        function checkDbStatus() {
+            fetch('/check-db-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.ready) {
+                        window.location.href = '/';
+                    }
+                })
+                .catch(error => {
+                    console.log('Status check failed:', error);
+                });
+        }
+        
+        // Check every 3 seconds
+        setInterval(checkDbStatus, 3000);
+    </script>
 {% endblock %}
 
 {% block content %}
@@ -12,5 +31,11 @@
 
 <h2>Database is resuming...</h2>
 <p>Please wait. The application will be available shortly.</p>
+
+<div class="spinner-border text-primary" role="status">
+    <span class="sr-only">Loading...</span>
+</div>
+
+<p><small>This page will automatically refresh when the database connection is established.</small></p>
 
 {% endblock %}

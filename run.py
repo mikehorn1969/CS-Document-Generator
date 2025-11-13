@@ -14,12 +14,19 @@ def db_check_thread():
 @app.route('/')
 def index():
     if not db_ready:
-        return redirect(url_for('waiting'))
-    return render_template('index.html')  # Your main app page
+        return render_template('waiting.html')
+    return redirect(url_for('views.index'))  # Redirect to the main views index
 
 @app.route('/waiting')
 def waiting():
-    return render_template('waiting.html')  # Show waiting message
+    if db_ready:
+        return redirect(url_for('views.index'))  # Redirect to main app if DB is ready
+    return render_template('waiting.html')
+
+@app.route('/check-db-status')
+def check_db_status():
+    """AJAX endpoint to check if database is ready"""
+    return {'ready': db_ready}
 
 if __name__ == '__main__':
     # Start DB check in a background thread
