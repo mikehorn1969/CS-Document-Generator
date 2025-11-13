@@ -1112,13 +1112,15 @@ def set_contract_candidate():
         if candidate_name is None or candidate_name == "":
             session["candidateName"] = contract.get("candidateName", "")    
         session.modified = True
+
     return ("", 204)
 
 
 @views_bp.route('/download_sp_nda', methods=['POST'])
 def download_sp_nda():
     """
-    Preview the merged NDA or create an excel data file for merging into a Service Provider NDA document."""
+    Preview the merged NDA or upload an excel data file top SharePoint for merging into a Service Provider NDA document.
+    """
 
     # Get session data
     contract = session.get('sessionContract', {})
@@ -1146,10 +1148,11 @@ def download_sp_nda():
             return redirect(url_for('views.index'))
 
         replacements = {
-            '{{DocDate}}': f_agreement_date,            
-            '{{SPName}}': candidate_name,
-            '{{SPAddress}}': candidate_address,
-            '{{SigName}}': candidate_name
+            'PDocDate': f_agreement_date,
+            'PSPName': candidate_name,
+            'PBodyName': candidate_name,
+            'PSPAddress': candidate_address,
+            'PSigName': candidate_name                
         }
 
         return serve_docx(file_bytes, target_file, replacements)
@@ -1222,11 +1225,27 @@ def download_sp_nda():
             )
         else:
             flash(f"Service Provider NDA uploaded to SharePoint.", "success")
-            return redirect(url_for('views.index'))
+            
+    return redirect(url_for('views.index'))
 
 
 @views_bp.route('/spcontract', methods=['GET', 'POST'])
 def prepare_sp_contract():
+    """
+    Prepares and renders the service provider contract page.
+    Validates that a service ID exists in the session contract data, then formats
+    the start and end dates from DD/MM/YYYY to YYYY-MM-DD format for HTML date
+    picker compatibility before rendering the contract template.
+    Returns:
+        flask.Response: Redirects to index page if no service ID is found,
+                       otherwise renders the spcontract.html template with
+                       formatted contract data.
+    Raises:
+        ValueError: If date strings cannot be parsed in the expected DD/MM/YYYY format.
+    Side Effects:
+        - Displays flash message if service ID validation fails
+        - Modifies session contract date formats in place
+    """
     
     contract = session.get('sessionContract', {})
     service_id = contract.get("sid", "")

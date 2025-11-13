@@ -199,7 +199,7 @@ def debugMode():
 
 def serve_docx(file_bytes: bytes, filename: str, replacements: Optional[dict] = None):
     """
-    Open a docx from bytes, replace placeholders, convert to HTML and serve for viewing
+    Open a docx from bytes, replace placeholders, convert to PDF and serve for viewing
     """
     import tempfile
     import os
@@ -213,7 +213,6 @@ def serve_docx(file_bytes: bytes, filename: str, replacements: Optional[dict] = 
     today_str = datetime.today().strftime('%d %B %Y')
     replacements.setdefault('{{DocDate}}', today_str)
     
-    
     # Validate input
     if not file_bytes or len(file_bytes) < 100:
         raise ValueError(f"Invalid file_bytes provided, size: {len(file_bytes) if file_bytes else 0}")
@@ -224,12 +223,16 @@ def serve_docx(file_bytes: bytes, filename: str, replacements: Optional[dict] = 
     
     tmp_dir = tempfile.gettempdir()
     tmp_path = None
+    modified_path = None
+    pdf_path = None
 
     try:
-        # Create a unique temporary file path
+        # Create unique temporary file paths
         import uuid
         unique_id = str(uuid.uuid4())
         tmp_path = os.path.join(tmp_dir, f"docx_input_{unique_id}.docx")
+        modified_path = os.path.join(tmp_dir, f"docx_modified_{unique_id}.docx")
+        pdf_path = os.path.join(tmp_dir, f"pdf_output_{unique_id}.pdf")
 
         # Write bytes to temp file
         with open(tmp_path, 'wb') as f:
@@ -245,24 +248,34 @@ def serve_docx(file_bytes: bytes, filename: str, replacements: Optional[dict] = 
         if debugMode():
             print("Document loaded successfully")
             
-        # Replace placeholders in paragraphs
+        # Replace placeholders in the document
         replace_text_in_document(doc, replacements)
 
-        if debugMode():
-            print("Document modifications completed")
-
-        # Convert document to HTML
-        html_content = convert_docx_to_html(doc)
+        # Save the modified document to a new file
+        doc.save(modified_path)
 
         if debugMode():
-            print("Document converted to HTML successfully")
+            print(f"Document modifications completed and saved to: {modified_path}")
+            print(f"Modified file exists: {os.path.exists(modified_path)}")
+            print(f"Modified file size: {os.path.getsize(modified_path)} bytes")
 
-        # Return HTML response for inline viewing
+        # Convert the MODIFIED DOCX to PDF
+        convert_docx_to_pdf(modified_path, pdf_path)
+
+        if debugMode():
+            print("Document converted to PDF successfully")
+            print(f"PDF file exists: {os.path.exists(pdf_path)}")
+
+        # Read the PDF file and return it
+        with open(pdf_path, 'rb') as pdf_file:
+            pdf_content = pdf_file.read()
+
+        # Return PDF response for inline viewing
         return Response(
-            html_content,
-            mimetype='text/html',
+            pdf_content,
+            mimetype='application/pdf',
             headers={
-                'Content-Disposition': f'inline; filename="{filename}.html"'
+                'Content-Disposition': f'inline; filename="{filename}.pdf"'
             }
         )
 
@@ -280,205 +293,289 @@ def serve_docx(file_bytes: bytes, filename: str, replacements: Optional[dict] = 
                 print(f"Cleaning up temp files")
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
+            if modified_path and os.path.exists(modified_path):
+                os.unlink(modified_path)
+            if pdf_path and os.path.exists(pdf_path):
+                os.unlink(pdf_path)
         except Exception as cleanup_error:
             if debugMode():
                 print(f"Cleanup error: {str(cleanup_error)}")
 
 
-def convert_docx_to_html(doc) -> str:
+def convert_docx_to_pdf(docx_path: str, pdf_path: str):
     """
-    Convert a python-docx Document object to HTML with enhanced formatting preservation
+    Convert a DOCX file to PDF using available conversion methods
     """
-    html_parts = []
-    html_parts.append("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Document Preview</title>
-        <style>
-            body { 
-                font-family: 'Calibri', 'Arial', sans-serif; 
-                margin: 0;
-                padding: 20px;
-                line-height: 1.4; 
-                background-color: #f0f0f0;
-                font-size: 11pt;
-            }
-            .document {
-                background-color: white;
-                padding: 72px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                max-width: 8.5in;
-                min-height: 11in;
-                margin: 0 auto;
-            }
-            .page-break {
-                page-break-before: always;
-            }
-            table { 
-                border-collapse: collapse; 
-                width: 100%; 
-                margin: 6pt 0;
-                font-size: inherit;
-            }
-            td, th { 
-                border: 1px solid #000; 
-                padding: 4pt 6pt; 
-                text-align: left;
-                vertical-align: top;
-            }
-            th { 
-                background-color: #f2f2f2; 
-                font-weight: bold;
-            }
-            p { 
-                margin: 0 0 6pt 0;
-                text-align: left;
-            }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .justify { text-align: justify; }
-            .bold { font-weight: bold; }
-            .italic { font-style: italic; }
-            .underline { text-decoration: underline; }
-            .heading1 { font-size: 16pt; font-weight: bold; margin: 12pt 0 6pt 0; }
-            .heading2 { font-size: 14pt; font-weight: bold; margin: 10pt 0 6pt 0; }
-            .heading3 { font-size: 12pt; font-weight: bold; margin: 8pt 0 6pt 0; }
-            .large { font-size: 14pt; }
-            .small { font-size: 9pt; }
-            .indent { margin-left: 36pt; }
-            .tab { margin-left: 36pt; }
-        </style>
-    </head>
-    <body>
-        <div class="document">
-    """)
+    try:
+        # Use python-docx with reportlab (basic conversion)
+        try:
+            convert_docx_to_pdf_reportlab(docx_path, pdf_path)
+            if debugMode():
+                print("Converted using reportlab")
+            return
+        except Exception as e:
+            if debugMode():
+                print(f"reportlab conversion failed: {e}")
+        
+        # If all methods fail, raise an error
+        raise Exception("No PDF conversion method available. Please install docx2pdf, pypandoc, or ensure Microsoft Word is available.")
+        
+    except Exception as e:
+        raise Exception(f"Failed to convert DOCX to PDF: {str(e)}")
+
+
+def convert_docx_to_pdf_reportlab(docx_path: str, pdf_path: str):
+    """
+    Convert DOCX to PDF using reportlab (simple text-based conversion)
+    """
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.colors import black
+        from docx import Document
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        
+        if debugMode():
+            print(f"Converting DOCX to PDF: {docx_path} -> {pdf_path}")
+        
+        # Open the document
+        doc = Document(docx_path)
+        
+        # Create a simple canvas-based PDF
+        c = canvas.Canvas(pdf_path, pagesize=A4)
+        width, height = A4
+        
+        # Starting position
+        y_position = height - 50  # Start near top with margin
+        line_height = 20
+        left_margin = 50
+        right_margin = 50
+        
+        # Set default font
+        c.setFont("Helvetica", 12)
+        c.setFillColor(black)
+        
+        if debugMode():
+            print(f"Processing {len(doc.paragraphs)} paragraphs")
+        
+        def get_alignment_from_paragraph(paragraph):
+            """Get text alignment from Word paragraph"""
+            try:
+                alignment = paragraph.alignment
+                if alignment == WD_ALIGN_PARAGRAPH.CENTER:
+                    return 'center'
+                elif alignment == WD_ALIGN_PARAGRAPH.RIGHT:
+                    return 'right'
+                elif alignment == WD_ALIGN_PARAGRAPH.JUSTIFY:
+                    return 'justify'
+                else:
+                    return 'left'  # Default and LEFT alignment
+            except:
+                return 'left'  # Fallback
+        
+        def draw_text_with_wrapping_and_alignment(text, start_y, alignment='left'):
+            """Helper function to draw text with proper line wrapping, newline handling, and alignment"""
+            current_y = start_y
+            max_width = width - left_margin - right_margin
+            
+            # Split by explicit newlines first
+            lines = text.split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    # Empty line - just add vertical space
+                    current_y -= line_height
+                    if current_y < 50:
+                        c.showPage()
+                        c.setFont("Helvetica", 12)
+                        c.setFillColor(black)
+                        current_y = height - 50
+                    continue
+                
+                # Handle word wrapping for each line
+                words = line.split(' ')
+                current_line = ""
+                
+                for word in words:
+                    # Test if adding this word would exceed the line
+                    test_line = current_line + (" " if current_line else "") + word
+                    text_width = c.stringWidth(test_line, "Helvetica", 12)
+                    
+                    if text_width <= max_width:
+                        current_line = test_line
+                    else:
+                        # Write the current line with proper alignment
+                        if current_line:
+                            draw_aligned_text(c, current_line, current_y, alignment, left_margin, right_margin, max_width)
+                            current_y -= line_height
+                            
+                            # Check if we need a new page
+                            if current_y < 50:
+                                c.showPage()
+                                c.setFont("Helvetica", 12)
+                                c.setFillColor(black)
+                                current_y = height - 50
+                        
+                        current_line = word
+                
+                # Write the last line of this paragraph line with proper alignment
+                if current_line:
+                    draw_aligned_text(c, current_line, current_y, alignment, left_margin, right_margin, max_width)
+                    current_y -= line_height
+                    
+                    # Check if we need a new page
+                    if current_y < 50:
+                        c.showPage()
+                        c.setFont("Helvetica", 12)
+                        c.setFillColor(black)
+                        current_y = height - 50
+            
+            return current_y
+        
+        def draw_aligned_text(canvas, text, y_pos, alignment, left_margin, right_margin, max_width):
+            """Draw text with specified alignment"""
+            text_width = canvas.stringWidth(text, "Helvetica", 12)
+            
+            if alignment == 'center':
+                x_pos = left_margin + (max_width - text_width) / 2
+            elif alignment == 'right':
+                x_pos = width - right_margin - text_width
+            elif alignment == 'justify':
+                # For justify, we'll just use left alignment for now
+                # True justification would require spacing words differently
+                x_pos = left_margin
+            else:  # left alignment (default)
+                x_pos = left_margin
+            
+            canvas.drawString(x_pos, y_pos, text)
+        
+        # Process each paragraph as simple text with alignment
+        for i, paragraph in enumerate(doc.paragraphs):
+            text = paragraph.text
+            if text.strip():
+                # Get paragraph alignment
+                alignment = get_alignment_from_paragraph(paragraph)
+                
+                if debugMode() and i < 10:  # Only log first 10 paragraphs
+                    text_preview = text[:100].replace('\n', '\\n')
+                    print(f"Paragraph {i} ({alignment}): {text_preview}...")
+                
+                y_position = draw_text_with_wrapping_and_alignment(text, y_position, alignment)
+                
+                # Add extra space after paragraphs
+                y_position -= 5
+                
+                # Check if we need a new page
+                if y_position < 50:
+                    c.showPage()
+                    c.setFont("Helvetica", 12)
+                    c.setFillColor(black)
+                    y_position = height - 50
+        
+        # Process tables as simple text (tables will use left alignment)
+        for table_idx, table in enumerate(doc.tables):
+            if debugMode():
+                print(f"Processing table {table_idx}")
+            
+            y_position -= 10  # Extra space before table
+            
+            for row in table.rows:
+                row_texts = []
+                for cell in row.cells:
+                    # Handle newlines in table cells, replace with space
+                    cell_text = cell.text.strip().replace('\n', ' ')
+                    row_texts.append(cell_text)
+                
+                # Use tab characters to separate table cells
+                row_text = "\t".join(row_texts)
+                if row_text.strip():
+                    # Truncate long table rows and handle wrapping
+                    if len(row_text) > 120:  # Increased limit for tab-separated content
+                        row_text = row_text[:117] + "..."
+                    
+                    y_position = draw_text_with_wrapping_and_alignment(row_text, y_position, 'left')
+                    
+                    if y_position < 50:
+                        c.showPage()
+                        c.setFont("Helvetica", 12)
+                        c.setFillColor(black)
+                        y_position = height - 50
+        
+        # Save the PDF
+        c.save()
+        
+        if debugMode():
+            print(f"PDF created successfully: {os.path.exists(pdf_path)}")
+            print(f"PDF file size: {os.path.getsize(pdf_path)} bytes")
+        
+    except ImportError:
+        raise Exception("reportlab not available for PDF conversion")
+    except Exception as e:
+        if debugMode():
+            print(f"Error in convert_docx_to_pdf_reportlab: {e}")
+            import traceback
+            traceback.print_exc()
+        raise
+
+
+def replace_text_in_document(doc, replacements: dict):
+    """
+    Simple text replacement throughout the document
+    """
+    if debugMode():
+        print(f"Starting document replacement with {len(replacements)} replacements")
     
-    # Convert paragraphs with enhanced formatting
-    for paragraph in doc.paragraphs:
-        para_html = convert_paragraph_to_html(paragraph)
-        if para_html:
-            html_parts.append(para_html)
+    # Simple paragraph-based replacement
+    for i, paragraph in enumerate(doc.paragraphs):
+        original_text = paragraph.text
+        new_text = original_text
+        
+        # Apply all replacements
+        for placeholder, replacement in replacements.items():
+            new_text = new_text.replace(placeholder, replacement)
+        
+        # If text changed, replace the entire paragraph
+        if new_text != original_text:
+            # Clear all runs and add new text
+            for run in paragraph.runs[:]:
+                run._element.getparent().remove(run._element)
+            
+            # Add new run with replacement text, preserving newlines
+            new_run = paragraph.add_run(new_text)
+            
+            if debugMode():
+                # Fix: Move the string replacement outside the f-string
+                original_preview = original_text[:50].replace('\n', '\\n')
+                new_preview = new_text[:50].replace('\n', '\\n')
+                print(f"Replaced paragraph {i}: '{original_preview}...' -> '{new_preview}...'")
     
-    # Convert tables with enhanced formatting
+    # Simple table replacement
     for table in doc.tables:
-        html_parts.append(convert_table_to_html(table))
-    
-    html_parts.append("""
-        </div>
-    </body>
-    </html>
-    """)
-    
-    return ''.join(html_parts)
-
-
-def convert_paragraph_to_html(paragraph) -> str:
-    """Convert a paragraph with formatting to HTML"""
-    if not paragraph.text.strip():
-        return '<p>&nbsp;</p>'
-    
-    # Determine paragraph alignment
-    alignment_class = ""
-    if hasattr(paragraph, 'alignment') and paragraph.alignment:
-        if paragraph.alignment == 1:  # Center
-            alignment_class = " center"
-        elif paragraph.alignment == 2:  # Right
-            alignment_class = " right"
-        elif paragraph.alignment == 3:  # Justify
-            alignment_class = " justify"
-    
-    # Check for heading styles
-    style_class = ""
-    if hasattr(paragraph, 'style') and paragraph.style:
-        style_name = str(paragraph.style.name).lower()
-        if 'heading 1' in style_name:
-            style_class = " heading1"
-        elif 'heading 2' in style_name:
-            style_class = " heading2"
-        elif 'heading 3' in style_name:
-            style_class = " heading3"
-    
-    # Process runs (formatted text segments within paragraph)
-    formatted_text = ""
-    for run in paragraph.runs:
-        text = run.text
-        if not text:
-            continue
-            
-        # Apply formatting to the run
-        if run.bold:
-            text = f'<strong>{text}</strong>'
-        if run.italic:
-            text = f'<em>{text}</em>'
-        if run.underline:
-            text = f'<u>{text}</u>'
-        
-        # Font size adjustments
-        if hasattr(run, 'font') and run.font.size:
-            size_pt = run.font.size.pt
-            if size_pt > 12:
-                text = f'<span class="large">{text}</span>'
-            elif size_pt < 10:
-                text = f'<span class="small">{text}</span>'
-        
-        formatted_text += text
-    
-    # If no runs processed, use plain text
-    if not formatted_text:
-        formatted_text = paragraph.text
-    
-    # Build the paragraph HTML
-    classes = f"class='{style_class}{alignment_class}'" if (style_class or alignment_class) else ""
-    
-    return f'<p {classes}>{formatted_text}</p>'
-
-
-def convert_table_to_html(table) -> str:
-    """Convert a table with formatting to HTML"""
-    html_parts = ['<table>']
-    
-    for row_idx, row in enumerate(table.rows):
-        html_parts.append('<tr>')
-        for cell in row.cells:
-            # Use th for first row if it looks like headers
-            tag = 'th' if row_idx == 0 and is_header_row(row) else 'td'
-            
-            # Process cell content with formatting
-            cell_content = ""
-            for paragraph in cell.paragraphs:
-                para_html = convert_paragraph_to_html(paragraph)
-                if para_html:
-                    # Remove <p> tags for table cells to avoid extra spacing
-                    para_content = para_html.replace('<p>', '').replace('</p>', '')
-                    if para_content.strip():
-                        cell_content += para_content + '<br/>'
-            
-            # Remove trailing <br/>
-            cell_content = cell_content.rstrip('<br/>')
-            
-            html_parts.append(f'<{tag}>{cell_content}</{tag}>')
-        html_parts.append('</tr>')
-    
-    html_parts.append('</table>')
-    return ''.join(html_parts)
-
-
-def is_header_row(row) -> bool:
-    """Determine if a table row should be treated as a header"""
-    # Simple heuristic: if most cells in first row are bold, treat as header
-    bold_count = 0
-    total_runs = 0
-    
-    for cell in row.cells:
-        for paragraph in cell.paragraphs:
-            for run in paragraph.runs:
-                total_runs += 1
-                if run.bold:
-                    bold_count += 1
-    
-    return total_runs > 0 and (bold_count / total_runs) > 0.5
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    original_text = paragraph.text
+                    new_text = original_text
+                    
+                    # Apply all replacements
+                    for placeholder, replacement in replacements.items():
+                        new_text = new_text.replace(placeholder, replacement)
+                    
+                    # If text changed, replace the paragraph
+                    if new_text != original_text:
+                        # Clear all runs and add new text
+                        for run in paragraph.runs[:]:
+                            run._element.getparent().remove(run._element)
+                        
+                        # Add new run with replacement text
+                        paragraph.add_run(new_text)
+                        
+                        if debugMode():
+                            # Fix: Move the string replacement outside the f-string
+                            original_preview = original_text[:30].replace('\n', '\\n')
+                            new_preview = new_text[:30].replace('\n', '\\n')
+                            print(f"Replaced table cell: '{original_preview}...' -> '{new_preview}...'")
 
 
 def execute_db_query_with_retry(stmt, operation_name="database query"):
@@ -523,176 +620,3 @@ def execute_db_query_with_retry(stmt, operation_name="database query"):
             if debugMode():
                 print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: Unexpected error: {str(e)}")
             return []
-
-def replace_text_in_document(doc, replacements: dict):
-    """
-    Replace placeholder text throughout the entire document including content controls
-    """
-    # Replace text in content controls (fields)
-    replace_text_in_content_controls(doc, replacements)
-    
-    # Replace text in paragraphs
-    for paragraph in doc.paragraphs:
-        replace_text_in_paragraph(paragraph, replacements)
-    
-    # Replace text in tables
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                # Check for content controls in table cells
-                replace_text_in_content_controls_element(cell._element, replacements)
-                for paragraph in cell.paragraphs:
-                    replace_text_in_paragraph(paragraph, replacements)
-    
-    # Replace text in headers and footers
-    for section in doc.sections:
-        # Header
-        header = section.header
-        replace_text_in_content_controls_element(header._element, replacements)
-        for paragraph in header.paragraphs:
-            replace_text_in_paragraph(paragraph, replacements)
-        
-        # Footer
-        footer = section.footer
-        replace_text_in_content_controls_element(footer._element, replacements)
-        for paragraph in footer.paragraphs:
-            replace_text_in_paragraph(paragraph, replacements)
-
-
-def replace_text_in_content_controls(doc, replacements: dict):
-    """
-    Replace text in Word content controls (fields)
-    """
-    try:
-        # Access the document's XML element
-        doc_element = doc._body._element
-        replace_text_in_content_controls_element(doc_element, replacements)
-    except Exception as e:
-        if debugMode():
-            print(f"Error replacing content controls: {e}")
-
-
-def replace_text_in_content_controls_element(element, replacements: dict):
-    """
-    Replace text in content controls within a specific XML element
-    """
-    try:
-        #from lxml import etree
-        
-        # Find all content control elements
-        # These are the XML tags for different types of content controls
-        cc_tags = [
-            './/{http://schemas.openxmlformats.org/wordprocessingml/2006/main}sdt',  # Structured document tag
-            './/{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldSimple',  # Simple field
-            './/{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldChar',  # Field character
-        ]
-        
-        for tag_pattern in cc_tags:
-            for cc in element.findall(tag_pattern):
-                replace_text_in_single_content_control(cc, replacements)
-                
-        # Also look for text elements directly
-        text_tags = './/{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'
-        for text_elem in element.findall(text_tags):
-            if text_elem.text:
-                original_text = text_elem.text
-                new_text = original_text
-                for placeholder, replacement in replacements.items():
-                    new_text = new_text.replace(placeholder, replacement)
-                if new_text != original_text:
-                    text_elem.text = new_text
-                    
-    except Exception as e:
-        if debugMode():
-            print(f"Error in replace_text_in_content_controls_element: {e}")
-
-
-def replace_text_in_single_content_control(cc_element, replacements: dict):
-    """
-    Replace text in a single content control element
-    """
-    try:
-        # Get all text elements within this content control
-        text_elements = cc_element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t')
-        
-        for text_elem in text_elements:
-            if text_elem.text:
-                original_text = text_elem.text
-                new_text = original_text
-                
-                for placeholder, replacement in replacements.items():
-                    new_text = new_text.replace(placeholder, replacement)
-                
-                if new_text != original_text:
-                    text_elem.text = new_text
-                    if debugMode():
-                        print(f"Replaced '{original_text}' with '{new_text}' in content control")
-                        
-    except Exception as e:
-        if debugMode():
-            print(f"Error replacing text in content control: {e}")
-
-
-def replace_text_in_paragraph(paragraph, replacements: dict):
-    """
-    Replace text in a single paragraph while preserving formatting
-    """
-    try:
-        # Get the full paragraph text first
-        full_text = paragraph.text
-        
-        # Check if any placeholder exists in this paragraph
-        has_placeholder = any(placeholder in full_text for placeholder in replacements.keys())
-        
-        if not has_placeholder:
-            return
-            
-        # For each replacement
-        for placeholder, replacement in replacements.items():
-            if placeholder in full_text:
-                # Try to replace within individual runs first
-                replaced_in_run = False
-                for run in paragraph.runs:
-                    if placeholder in run.text:
-                        run.text = run.text.replace(placeholder, replacement)
-                        replaced_in_run = True
-                        if debugMode():
-                            print(f"Replaced '{placeholder}' with '{replacement}' in paragraph run")
-                
-                # If not replaced in runs, try across runs
-                if not replaced_in_run:
-                    replace_text_across_runs(paragraph, placeholder, replacement)
-                    
-    except Exception as e:
-        if debugMode():
-            print(f"Error replacing text in paragraph: {e}")
-
-
-def replace_text_across_runs(paragraph, placeholder, replacement):
-    """
-    Replace text that spans across multiple runs in a paragraph
-    """
-    try:
-        # Get the full paragraph text
-        full_text = paragraph.text
-        
-        if placeholder not in full_text:
-            return
-        
-        # Replace all occurrences
-        new_text = full_text.replace(placeholder, replacement)
-        
-        if new_text != full_text:
-            # Clear all runs
-            for run in paragraph.runs[:]:
-                run._element.getparent().remove(run._element)
-            
-            # Add the new text as a single run
-            paragraph.add_run(new_text)
-            
-            if debugMode():
-                print(f"Replaced '{placeholder}' with '{replacement}' across multiple runs")
-                
-    except Exception as e:
-        if debugMode():
-            print(f"Error replacing text across runs: {e}")

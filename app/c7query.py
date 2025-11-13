@@ -394,55 +394,56 @@ def getC7contract(candidate_id):
             requirement_id = placement_data.get('RequirementId', 0)
 
     # get company contact data                   
-    contact_data = getC7Contact(contact_id)
+    if contact_id != '' and contact_id is not None:
+        contact_data = getC7Contact(contact_id)
 
-    if contact_data:        
-        contact_name = (contact_data.get("ContactName") or "")
-        contact_address = (contact_data.get("ContactAddress") or "")
-        contact_email = contact_data.get("ContactEmail", "")
-        contact_phone = contact_data.get("ContactPhone", "")
-        contact_title = contact_data.get("ContactTitle", "")
+        if contact_data:        
+            contact_name = (contact_data.get("ContactName") or "")
+            contact_address = (contact_data.get("ContactAddress") or "")
+            contact_email = contact_data.get("ContactEmail", "")
+            contact_phone = contact_data.get("ContactPhone", "")
+            contact_title = contact_data.get("ContactTitle", "")
 
     # get company data
+    if company_id != '' and company_id is not None:
+        company_data = getC7Company(company_id)
+            
+        if company_data:                    
+            company_email = company_data.get("CompanyEmail", "")
+            company_phone = company_data.get("TelephoneNumber", "") 
+            company_number = company_data.get("CUSTOM_Company Registration Number", "")  
+            company_msa_signed = company_data.get("CUSTOM_MSA Signed", "") 
 
-    company_data = getC7Company(company_id)
-        
-    if company_data:                    
-        company_email = company_data.get("CompanyEmail", "")
-        company_phone = company_data.get("TelephoneNumber", "") 
-        company_number = company_data.get("CUSTOM_Company Registration Number", "")  
-        company_msa_signed = company_data.get("CUSTOM_MSA Signed", "") 
+            # search Companies House API using name and company number (fetch company number from CH if it's missing)
+            # populate registered address when a match is found
+            if company_number == None:
+                ch_result = searchCH(company_name)
+                # break using flag once key is found
+                foundit = False
+                for key, value in ch_result.items():
+                    if key == "items":
+                        for item in value:
+                            if ( item.get('title') == company_name.upper() ):
+                                foundit = True
+                                company_number = item.get('company_number')
+                            if foundit:
+                                break
+                    if foundit:
+                        break
 
-        # search Companies House API using name and company number (fetch company number from CH if it's missing)
-        # populate registered address when a match is found
-        if company_number == None:
-            ch_result = searchCH(company_name)
-            # break using flag once key is found
-            foundit = False
-            for key, value in ch_result.items():
-                if key == "items":
-                    for item in value:
-                        if ( item.get('title') == company_name.upper() ):
-                            foundit = True
-                            company_number = item.get('company_number')
-                        if foundit:
-                            break
-                if foundit:
-                    break
-
-        company_jurisdiction = ""
-        company_address = ""
-        if (company_name and company_number):
-            company_address, company_jurisdiction = getCHbasics(company_name, company_number)
-            if company_jurisdiction == "england-wales":
+            company_jurisdiction = ""
+            company_address = ""
+            if (company_name and company_number):
+                company_address, company_jurisdiction = getCHbasics(company_name, company_number)
+                if company_jurisdiction == "england-wales":
+                    company_jurisdiction = "England and Wales"
+            else:
+                RawAddress = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
+                # Clean up: remove repeated commas and any surrounding whitespace
+                company_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
+                company_address = re.sub(r',+', ',', company_address)       # collapse multiple commas into one
+                company_address = company_address.strip(', ').strip()       # final tidy-up
                 company_jurisdiction = "England and Wales"
-        else:
-            RawAddress = (company_data.get("AddressLine1") or "") + ", " + (company_data.get("AddressLine2") or "") + ", " + (company_data.get("AddressLine3") or "") + ", " + (company_data.get("City") or "") + ", " + (company_data.get("Postcode") or "")
-            # Clean up: remove repeated commas and any surrounding whitespace
-            company_address = re.sub(r'\s*,\s*(?=,|$)', '', RawAddress)  # remove empty elements
-            company_address = re.sub(r',+', ',', company_address)       # collapse multiple commas into one
-            company_address = company_address.strip(', ').strip()       # final tidy-up
-            company_jurisdiction = "England and Wales"
                                     
     # Return gathered data as JSON  
     # Technical Debt: currencies are hard coded    
