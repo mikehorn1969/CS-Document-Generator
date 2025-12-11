@@ -733,7 +733,7 @@ def download_sp_msa():
     data_rows = []
     row = {}
     row["AgreementDate"] = f_agreement_date
-    fields = ["candidateName", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateaddress", "candidateemail"]
+    fields = ["candidateName", "candidateltdname", "candidatejurisdiction", "candidateltdregno", "candidateregaddress", "candidateemail"]
 
     export_columns = ["CandidateName", "CandidateLtdName", "CandidateJurisdiction", "CandidateLtdRegNo", "CandidateAddress", "CandidateEmail"]
 
