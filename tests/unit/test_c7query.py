@@ -9,7 +9,7 @@ import pytest
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, project_root)
 
-from app.c7query import getC7ContactsByCompany, getC7RequirementCandidates, getC7Company, getC7Candidate, getC7contract  
+from app.c7query import getC7ContactsByCompany, getC7RequirementCandidates, getC7Company, getC7Candidate, getC7contract, setC7CandidateMSASent
 from app.helper import load_config
 
 def test_loadConfig():
@@ -92,3 +92,8 @@ def test_getC7Contract():
         assert start_date_obj <= date.today(), "Start date should be less than or equal to today"
 
 
+def test_msa_sent():
+    candidateid = 8851
+    result = setC7CandidateMSASent(candidateid)
+
+    assert result == "Candidate updated successfully"

@@ -734,3 +734,50 @@ def loadC7Clients() -> list[Company] | None:
 
     return Company.get_all_companies()
 
+
+def setC7CandidateMSASent(candidate_id):
+    """
+    Set the MSA Sent date for a candidate in the C7 system.
+    This function updates a custom field 'MSA Sent' for a specified candidate
+    with the current date via the C7 Open API.
+    Args:
+        candidate_id: The unique identifier of the candidate to update.
+    Returns:
+        str: The response text from the API if successful, or an error message
+            prefixed with "Error: " if the request fails.
+    Raises:
+        None explicitly, but may raise exceptions from requests.patch() or
+        load_config() if they fail.
+    Note:
+        - Requires configuration to be loaded via load_config() containing
+        C7_USERID and C7_HDR keys.
+        - Sets the MSA Sent date to the current date and time.
+        - Prints debug information if debugMode() returns True.
+    """
+  
+    if debugMode():
+            print(f"{datetime.now().strftime('%H:%M:%S')} setC7CandidateMSASent: Setting MSA Sent date for candidate")
+
+    msa_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    cfg = load_config()
+    user_id = cfg["C7_USERID"]
+    hdr = cast(dict[str, str], cfg["C7_HDR"])
+
+    body ={
+        "userId": user_id,
+        "candidateId": candidate_id,    
+        "customFieldUpdates": [{
+            "fieldName": "MSA Sent",
+            "fieldValue": msa_date
+        }],    
+        "amendedBy": user_id
+    }
+
+    url = "https://coll7openapi.azure-api.net/api/Candidate/Update"
+    response = requests.patch(url, headers=hdr, json=body)
+
+    if response.status_code != 200:
+        return "Error: " + response.text
+
+    return response.text
+   

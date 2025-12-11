@@ -7,7 +7,7 @@ from flask import Blueprint, send_from_directory
 
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract
 from app.c7query import  searchC7Candidate, getC7ContactsByCompany, gatherC7data,\
-    getC7Candidate, getC7Candidates, getC7Contact, loadC7Clients
+    getC7Candidate, getC7Candidates, getC7Contact, loadC7Clients, setC7CandidateMSASent
 from app.dbquery import loadServiceStandards, loadServiceArrangements
 from app.chquery import validateCH, searchCH
 from app.classes import Company
@@ -725,7 +725,7 @@ def download_sp_msa():
 
     agreement_date = request.form.get('AgreementDate', '')
     candidate_email = request.form.get('candidate-email', '')
-    
+    candidate_id = contract.get('candidateid', 0)   
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
@@ -795,7 +795,8 @@ def download_sp_msa():
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     else:
-        flash(f"Service Provider MSA uploaded to SharePoint.", "success")
+        setC7CandidateMSASent(candidate_id)
+        flash(f"Service Provider MSA uploaded to SharePoint.", "success")        
         return redirect(url_for('views.index'))
 
 
