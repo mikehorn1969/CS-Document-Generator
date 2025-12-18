@@ -121,7 +121,7 @@ def set_servicestandards():
     
     standards = []
     session_contract = {}
-    service_id = ""
+    service_id = "CS"
     contract = {}
 
     # Determine which standards to show - either passed in query string or form data
@@ -137,10 +137,7 @@ def set_servicestandards():
         if service_id is None or service_id == "":
             flash("Select a Service Provider with a Service ID before continuing.", "error")
             return redirect(url_for('views.index'))
-    # otherwise we only need the service ID
-    else:
-        service_id = "CS"
-
+    
     if request.method == "GET":
                     
         if which == "SP Standards":
@@ -152,7 +149,7 @@ def set_servicestandards():
             # No contract data needed for CS Standards
             contract = {"sid": service_id}
 
-        standards = loadServiceStandards(service_id) 
+        #standards = loadServiceStandards(service_id) 
 
         if which == "SP Standards":
             contract_record = db.session.scalar(

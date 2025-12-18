@@ -27,16 +27,43 @@
 
 {% block content %}
 
-<h1>CS Document Generator Start Up</h1>
-<h1>Welcome to the Change Specialists Document Generator.</h1>
+<h1>Document Generator</h1>
 
 <h2>Database is resuming...</h2>
-<p>Please wait. The application will be available shortly.</p>
+<p><small>Please wait. The application will be available shortly.</small></p>
 
-<div class="spinner-border text-primary" role="status">
-    <span class="sr-only">Loading...</span>
-</div>
+    <div class="waiting-container">
+        <div class="waiting-spinner"></div>
+        <div class="waiting-message">Connecting to database...</div>
+        <div id="error-message" class="waiting-error" style="display: none;"></div>
+    </div>
+    <script>
+        // Poll the database status endpoint
+        function checkDatabaseStatus() {
+            fetch('/db-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.connected) {
+                        window.location.href = '/';
+                    } else if (data.error) {
+                        document.getElementById('error-message').textContent = data.error;
+                        document.getElementById('error-message').style.display = 'block';
+                        // Still retry after error
+                        setTimeout(checkDatabaseStatus, 5000);
+                    } else {
+                        setTimeout(checkDatabaseStatus, 2000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking database status:', error);
+                    setTimeout(checkDatabaseStatus, 2000);
+                });
+        }
+        
+        // Start checking immediately
+        checkDatabaseStatus();
+    </script>
 
-<p><small>This page will automatically refresh when the database connection is established.</small></p>
+    
 
 {% endblock %}

@@ -13,15 +13,18 @@ def db_check_thread():
 
 @app.route('/')
 def index():
+    # Start DB check in a background thread
+    Thread(target=db_check_thread, daemon=True).start()
+
     if not db_ready:
         return render_template('waiting.html')
     return redirect(url_for('views.index'))  # Redirect to the main views index
 
-@app.route('/waiting')
+""" @app.route('/waiting')
 def waiting():
     if db_ready:
         return redirect(url_for('views.index'))  # Redirect to main app if DB is ready
-    return render_template('waiting.html')
+    return render_template('waiting.html') """
 
 @app.route('/check-db-status')
 def check_db_status():
@@ -29,8 +32,8 @@ def check_db_status():
     return {'ready': db_ready}
 
 if __name__ == '__main__':
-    # Start DB check in a background thread
-    Thread(target=db_check_thread, daemon=True).start()
+    
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
 
