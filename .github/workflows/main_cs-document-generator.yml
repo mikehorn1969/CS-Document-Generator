@@ -66,6 +66,7 @@ jobs:
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
-          app-name: 'cs-document-generator'
+          app-name: 'cs-deploytest'
           slot-name: 'Production'
+
           
