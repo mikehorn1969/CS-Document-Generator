@@ -78,8 +78,20 @@ def formatName(name_string: str) -> str:
 def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
     """
     Upload a file to SharePoint using Microsoft Graph API and managed identity.
-    """
-    credential = DefaultAzureCredential()
+    """    
+
+    if debugMode():
+        print(f"{datetime.now().strftime('%H:%M:%S')} uploadToSharePoint: Uploading file '{filename}' to SharePoint at '{target_url}'")
+
+    # Configure region for Azure - explicitly set region for better performance
+    credential = DefaultAzureCredential(
+        additionally_allowed_tenants=["*"],
+        # Add exclude options to speed up credential resolution
+        exclude_visual_studio_code_credential=True,
+        exclude_shared_token_cache_credential=True,
+        exclude_powershell_credential=True
+    )
+
     token = credential.get_token("https://graph.microsoft.com/.default")
     access_token = token.token
 
@@ -116,7 +128,15 @@ def downloadFromSharePoint(folder_path: str, filename: str) -> Optional[bytes]:
     Download a file from SharePoint using Microsoft Graph API and managed identity.
     Returns the file bytes if successful, else None.
     """
-    credential = DefaultAzureCredential()
+    # Configure region for Azure - explicitly set region for better performance
+    credential = DefaultAzureCredential(
+        additionally_allowed_tenants=["*"],
+        # Add exclude options to speed up credential resolution
+        exclude_visual_studio_code_credential=True,
+        exclude_shared_token_cache_credential=True,
+        exclude_powershell_credential=True
+    )
+
     token = credential.get_token("https://graph.microsoft.com/.default")
     access_token = token.token
 

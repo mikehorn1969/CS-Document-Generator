@@ -3,67 +3,86 @@
 {% extends "base.html" %}
 
 {% block head %}
-    {{ super() }}
-    <meta http-equiv="refresh" content="3">
-    <script>
-        // Alternative AJAX-based refresh (optional)
-        function checkDbStatus() {
-            fetch('/check-db-status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.ready) {
-                        window.location.href = '/';
-                    }
-                })
-                .catch(error => {
-                    console.log('Status check failed:', error);
-                });
-        }
-        
-        // Check every 3 seconds
-        setInterval(checkDbStatus, 3000);
-    </script>
+    {{ super() }}    
 {% endblock %}
 
 {% block content %}
 
-<h1>Document Generator</h1>
-
-<h2>Database is resuming...</h2>
-<p><small>Please wait. The application will be available shortly.</small></p>
+    <h1>Document Generator</h1>
+    <h2 id="connection-heading">Connecting to Database...</h2>
 
     <div class="waiting-container">
-        <div class="waiting-spinner"></div>
-        <div class="waiting-message">Connecting to database...</div>
-        <div id="error-message" class="waiting-error" style="display: none;"></div>
+        <div id="loading-state">
+            <div class="waiting-spinner"></div>
+            <p id="loading-message">Please wait while we establish a connection to the database.</p>
+            <p class="waiting-status" id="loading-status">This may take a few moments...</p>
+            <div id="waking-info" class="waiting-waking-message" style="display: none;">
+                <strong>ℹ️ Database is waking up</strong><br>
+                The database was paused to save resources. It typically takes 30-90 seconds to resume.
+            </div>
+        </div>
+        
+        <div id="error-state" class="waiting-error" style="display: none;">
+            <h2>⚠️ Database Connection Failed</h2>
+            <p>Unable to connect to the database after multiple attempts.</p>
+            <div class="waiting-error-details" id="error-message"></div>
+            <p class="waiting-status">Please contact support or try again later.</p>
+        </div>
     </div>
+
     <script>
-        // Poll the database status endpoint
+        let pollCount = 0;
+        const maxPolls = 120; // Poll for up to 10 minutes for serverless wake-up
+        
         function checkDatabaseStatus() {
             fetch('/db-status')
                 .then(response => response.json())
                 .then(data => {
+                    pollCount++;
+                    
                     if (data.connected) {
+                        // Database is connected, redirect to home page
                         window.location.href = '/';
+                    } else if (data.waking) {
+                        // Database is waking up - show special message
+                        document.getElementById('waking-info').style.display = 'block';
+                        document.getElementById('loading-message').textContent = 
+                            'The serverless database is resuming from a paused state...';
+                        document.getElementById('loading-status').textContent = 
+                            `Attempt ${pollCount} of ${maxPolls} (checking every 5 seconds)`;
+                        
+                        // Continue polling
+                        setTimeout(checkDatabaseStatus, 5000);
                     } else if (data.error) {
+                        // Show error state
+                        document.getElementById('loading-state').style.display = 'none';
+                        document.getElementById('error-state').style.display = 'block';
                         document.getElementById('error-message').textContent = data.error;
-                        document.getElementById('error-message').style.display = 'block';
-                        // Still retry after error
+                        
+                        // Stop polling after showing error
+                        return;
+                    } else if (pollCount < maxPolls) {
+                        // Still connecting, continue polling
                         setTimeout(checkDatabaseStatus, 5000);
                     } else {
-                        setTimeout(checkDatabaseStatus, 2000);
+                        // Timeout - show generic error
+                        document.getElementById('loading-state').style.display = 'none';
+                        document.getElementById('error-state').style.display = 'block';
+                        document.getElementById('error-message').textContent = 
+                            'Connection timeout: Database did not respond within the expected time.';
                     }
                 })
                 .catch(error => {
                     console.error('Error checking database status:', error);
-                    setTimeout(checkDatabaseStatus, 2000);
+                    // Continue polling on fetch errors
+                    if (pollCount < maxPolls) {
+                        setTimeout(checkDatabaseStatus, 5000);
+                    }
                 });
         }
-        
-        // Start checking immediately
+
+        // Start polling when page loads
         checkDatabaseStatus();
     </script>
-
-    
 
 {% endblock %}
