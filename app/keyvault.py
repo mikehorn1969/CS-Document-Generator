@@ -13,7 +13,12 @@ def get_kv_client() -> Optional[SecretClient]:
     if not kv_name:
         return None
     vault_uri = f"https://{kv_name}.vault.azure.net"
-    credential = DefaultAzureCredential()
+    
+    # Configure region for MSAL to avoid region warnings in Azure
+    # DefaultAzureCredential will auto-detect region, but we can set it explicitly
+    credential = DefaultAzureCredential(
+        additionally_allowed_tenants=["*"]  # Allow multi-tenant if needed
+    )
     return SecretClient(vault_url=vault_uri, credential=credential)
 
 

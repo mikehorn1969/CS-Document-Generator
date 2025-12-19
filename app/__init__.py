@@ -131,11 +131,13 @@ def build_engine():
     except Exception as e:
         logging.error(f"Failed to list ODBC drivers: {e}")
     
-    sql_username = get_secret("SQL-USERNAME")
-    sql_password = get_secret("SQL-PASSWORD")
-    sql_servername = get_secret("SQL-SERVERNAME")
-    sql_databasename = get_secret("SQL-DATABASE")
-    sql_port = get_secret("SQL-PORT")
+    # Get secrets from environment or Key Vault
+    # Note: Key Vault secret names use different format than env vars
+    sql_username = get_secret("SQL_USERNAME", "SQL-USERNAME")
+    sql_password = get_secret("SQL_PASSWORD", "SQL-PASSWORD")
+    sql_servername = get_secret("SQL_SERVERNAME", "SQL-SERVERNAME")
+    sql_databasename = get_secret("SQL_DATABASE", "SQL-DATABASE")
+    sql_port = get_secret("SQL_PORT", "SQL-PORT")
     
     # Debug: Log connection parameters (without password)
     logging.info(f"SQL Server: {sql_servername}")
@@ -157,6 +159,7 @@ def build_engine():
     last_error = None
     for driver in driver_options:
         try:
+            # Add Connection Timeout for Azure SQL
             odbc_params = (
                 f"DRIVER={{{driver}}};"
                 f"Server=tcp:{sql_servername},{sql_port};"
@@ -165,7 +168,8 @@ def build_engine():
                 f"Pwd={sql_password};"
                 "Encrypt=yes;"
                 "TrustServerCertificate=no;"
-                "Login Timeout=90;"
+                "Connection Timeout=30;"
+                "Login Timeout=30;"
                 "ConnectRetryCount=3;"
                 "ConnectRetryInterval=10;"
             )

@@ -27,8 +27,8 @@ def load_config() -> dict[str, str | dict]:
     c7_key = get_secret("C7APIKey")
     c7_userid = get_secret("C7USERID")
     ch_key = get_secret("CHKEY")
-    sql_username = get_secret("SQL-USERNAME")
-    sql_password = get_secret("SQL-PASSWORD")
+    sql_username = get_secret("SQL_USERNAME", "SQL-USERNAME")
+    sql_password = get_secret("SQL_PASSWORD", "SQL-PASSWORD")
     prefix = get_secret("NAMEAPI-KEYPREFIX")
     suffix = get_secret("NAMEAPI-KEYSUFFIX")
     nameapi_key = f"{prefix}-{suffix}"
