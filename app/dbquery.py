@@ -19,6 +19,8 @@ def loadServiceStandards(service_id):
     if debugMode():
         print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: Fetching standards for Service ID {service_id}")
         print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: service_id type: {type(service_id)}, value: '{service_id}'")
+        # Debug: Check what engine we're actually using
+        print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: Database URL: {db.engine.url}")
     
     if not service_id:                
         if debugMode():
@@ -49,6 +51,8 @@ def loadServiceArrangements(service_id):
     
     if debugMode():
         print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceArrangements: Fetching arrangements for Service ID {service_id}")
+        # Debug: Check what engine we're actually using
+        print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceArrangements: Database URL: {db.engine.url}")
     
     if not service_id:
         return []

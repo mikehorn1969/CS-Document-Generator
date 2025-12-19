@@ -134,11 +134,23 @@ def connect_database_background():
                 # Update the app configuration with the real database URI
                 if app_instance:
                     with app_instance.app_context():
+                        # Dispose old SQLite engine completely
+                        if db.engine:
+                            db.engine.dispose()
+                        
+                        # Update config
                         app_instance.config['SQLALCHEMY_DATABASE_URI'] = str(engine.url)
                         db_engine = engine
-                        # Dispose old engine
-                        db.engine.dispose()
                         
+                        # Force SQLAlchemy to use the new engine by replacing it
+                        db.session.remove()
+                        db.get_engine().dispose()
+                        
+                        # Test with actual query
+                        with db.engine.connect() as test_conn:
+                            result = test_conn.execute(text("SELECT COUNT(*) FROM dbo.ServiceStandard"))
+                            logging.info(f"Successfully connected to SQL Server with {result.scalar()} standards")
+                
                 with db_lock:
                     db_connected = True
                     db_error = None
