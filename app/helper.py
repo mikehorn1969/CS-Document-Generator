@@ -86,6 +86,7 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
     # Configure region for Azure - explicitly set region for better performance
     credential = DefaultAzureCredential(
         additionally_allowed_tenants=["*"],
+        azure_regional_authority_name="uksouth",
         # Add exclude options to speed up credential resolution
         exclude_visual_studio_code_credential=True,
         exclude_shared_token_cache_credential=True,
@@ -131,6 +132,7 @@ def downloadFromSharePoint(folder_path: str, filename: str) -> Optional[bytes]:
     # Configure region for Azure - explicitly set region for better performance
     credential = DefaultAzureCredential(
         additionally_allowed_tenants=["*"],
+        azure_regional_authority_name="uksouth",
         # Add exclude options to speed up credential resolution
         exclude_visual_studio_code_credential=True,
         exclude_shared_token_cache_credential=True,
