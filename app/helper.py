@@ -83,10 +83,9 @@ def uploadToSharePoint(file_bytes: bytes, filename: str, target_url):
     if debugMode():
         print(f"{datetime.now().strftime('%H:%M:%S')} uploadToSharePoint: Uploading file '{filename}' to SharePoint at '{target_url}'")
 
-    # Configure region for Azure - explicitly set region for better performance
+    # Configure credential for Microsoft Graph API access
     credential = DefaultAzureCredential(
         additionally_allowed_tenants=["*"],
-        azure_region="uksouth",
         # Add exclude options to speed up credential resolution
         exclude_visual_studio_code_credential=True,
         exclude_shared_token_cache_credential=True,
@@ -129,10 +128,9 @@ def downloadFromSharePoint(folder_path: str, filename: str) -> Optional[bytes]:
     Download a file from SharePoint using Microsoft Graph API and managed identity.
     Returns the file bytes if successful, else None.
     """
-    # Configure region for Azure - explicitly set region for better performance
+    # Configure credential for Microsoft Graph API access
     credential = DefaultAzureCredential(
         additionally_allowed_tenants=["*"],
-        azure_region="uksouth",
         # Add exclude options to speed up credential resolution
         exclude_visual_studio_code_credential=True,
         exclude_shared_token_cache_credential=True,

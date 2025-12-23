@@ -14,10 +14,9 @@ def get_kv_client() -> Optional[SecretClient]:
         return None
     vault_uri = f"https://{kv_name}.vault.azure.net"
     
-    # Configure region for Azure - explicitly set region for better performance
+    # Configure credential for Azure Key Vault access
     credential = DefaultAzureCredential(
         additionally_allowed_tenants=["*"],
-        azure_region="uksouth",
         # Add exclude options to speed up credential resolution
         exclude_visual_studio_code_credential=True,
         exclude_shared_token_cache_credential=True,
