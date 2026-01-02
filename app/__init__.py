@@ -8,7 +8,7 @@ import logging
 import threading
 import time
 import pyodbc
-
+import sqlite3
 
 # Initialise extensions globally
 db = SQLAlchemy()
