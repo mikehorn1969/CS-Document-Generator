@@ -13,7 +13,7 @@ from app.chquery import validateCH, searchCH
 from app.classes import Company
 from app.helper import formatName, uploadToSharePoint, serve_docx, downloadFromSharePoint
 from datetime import datetime
-from sqlalchemy import select
+from sqlalchemy import select, func
 import pandas as pd
 from io import BytesIO
 from openpyxl import load_workbook
@@ -153,7 +153,7 @@ def set_servicestandards():
 
         if which == "SP Standards":
             contract_record = db.session.scalar(
-                select(ServiceContract).where(ServiceContract.sid == service_id)
+                select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
             )
             if contract_record:
                 contract['context'] = contract_record.context or ''
@@ -206,7 +206,7 @@ def set_servicestandards():
             specialconditions = raw.strip() if isinstance(raw, str) else ''
 
             contract_record = db.session.scalar(
-                select(ServiceContract).where(ServiceContract.sid == service_id)
+                select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
             )
             if not contract_record:
                 contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions, context=context)
@@ -255,7 +255,7 @@ def manage_servicearrangements():
         # For each day, get or create, then update from form (or sensible defaults for new rows)
         for day in days:
             arrangement = (db.session.query(ServiceArrangement)
-                           .filter(ServiceArrangement.sid == service_id,
+                           .filter(func.upper(ServiceArrangement.sid) == func.upper(service_id),
                                    ServiceArrangement.day == day)
                            .one_or_none())
 
@@ -301,7 +301,7 @@ def manage_servicearrangements():
         specialconditions = raw.strip() if isinstance(raw, str) else ''
 
         contract_record = db.session.scalar(
-            select(ServiceContract).where(ServiceContract.sid == service_id)
+            select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
         )
         if not contract_record:
             contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions)
@@ -323,7 +323,7 @@ def manage_servicearrangements():
         for row in arr_list
     }
     contract_record = db.session.scalar(
-        select(ServiceContract).where(ServiceContract.sid == service_id)
+        select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
     )
     if contract_record:
         contract['specialconditions'] = contract_record.specialconditions or ''
@@ -408,7 +408,7 @@ def download_client_contract():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
         
-    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
+    contract_record = db.session.scalar(select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(sid)))
     special_conditions = contract_record.specialconditions if contract_record else ''
     context = contract_record.context if contract_record else ''
 
@@ -550,7 +550,7 @@ def download_client_renewal():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
         
-    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == sid))
+    contract_record = db.session.scalar(select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(sid)))
     special_conditions = contract_record.specialconditions if contract_record else ''
     context = contract_record.context if contract_record else ''
     
@@ -1308,7 +1308,7 @@ def download_sp_contract():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
+    contract_record = db.session.scalar(select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)))
     special_conditions = contract_record.specialconditions if contract_record else ''
     context = contract_record.context if contract_record else ''
 
@@ -1460,7 +1460,7 @@ def download_sp_renewal():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    contract_record = db.session.scalar(select(ServiceContract).where(ServiceContract.sid == service_id))
+    contract_record = db.session.scalar(select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)))
     special_conditions = contract_record.specialconditions if contract_record else ''
     context = contract_record.context if contract_record else ''
 

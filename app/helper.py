@@ -609,17 +609,21 @@ def execute_db_query_with_retry(stmt, operation_name="database query"):
     Returns:
         Query results or empty list if all retries fail
     """
+    import logging
     max_retries = 3
     retry_delay = 1  # seconds
     
     for attempt in range(max_retries):
         try:
             query_result = db.session.execute(stmt).scalars().all()
+            logging.info(f"{operation_name}: Successfully executed, returned {len(query_result)} results")
             return query_result
             
         except (OperationalError, DisconnectionError) as e:
+            error_msg = f"{operation_name}: Database connection error on attempt {attempt + 1}: {str(e)}"
+            logging.error(error_msg)
             if debugMode():
-                print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: Database connection error on attempt {attempt + 1}: {str(e)}")
+                print(f"{datetime.now().strftime('%H:%M:%S')} {error_msg}")
             
             if attempt < max_retries - 1:
                 # Close the current session to ensure clean retry
@@ -632,11 +636,14 @@ def execute_db_query_with_retry(stmt, operation_name="database query"):
                 retry_delay *= 2  # Exponential backoff
                 continue
             else:
+                logging.error(f"{operation_name}: All retry attempts failed, returning empty list")
                 if debugMode():
                     print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: All retry attempts failed, returning empty list")
                 return []
         
         except Exception as e:
+            error_msg = f"{operation_name}: Unexpected error: {str(e)}"
+            logging.error(error_msg)
             if debugMode():
-                print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: Unexpected error: {str(e)}")
+                print(f"{datetime.now().strftime('%H:%M:%S')} {error_msg}")
             return []

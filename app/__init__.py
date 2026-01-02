@@ -94,6 +94,34 @@ def create_app():
                 'waking': db_waking
             }
     
+    # Add diagnostic endpoint to check data
+    @app.route('/db-check')
+    def db_check():
+        from sqlalchemy import text
+        global db_connected
+        
+        if not db_connected:
+            return {'error': 'Database not connected'}, 503
+        
+        try:
+            # Check table exists and count records
+            with db.engine.connect() as conn:
+                result = conn.execute(text("SELECT COUNT(*) as total, COUNT(CASE WHEN UPPER(sid) = 'CS' THEN 1 END) as cs_count FROM dbo.ServiceStandard"))
+                row = result.fetchone()
+                
+                # Get sample of CS records
+                cs_records = conn.execute(text("SELECT TOP 5 stdid, sid, ssn, description FROM dbo.ServiceStandard WHERE UPPER(sid) = 'CS'"))
+                cs_data = [{'stdid': r[0], 'sid': r[1], 'ssn': r[2], 'description': r[3]} for r in cs_records]
+                
+                return {
+                    'total_records': row[0],
+                    'cs_records': row[1],
+                    'sample_data': cs_data,
+                    'database_url': str(db.engine.url).replace(str(db.engine.url).split('@')[0].split('/')[-1], '****') if '@' in str(db.engine.url) else 'sqlite'
+                }
+        except Exception as e:
+            return {'error': str(e)}, 500
+    
     # Redirect to waiting page if DB not connected
     @app.before_request
     def check_db_connection():
@@ -101,8 +129,9 @@ def create_app():
         global db_connected
         
         # Allow these endpoints without DB
-        allowed = ['/waiting', '/db-status', '/static/', '/favicon.ico']
+        allowed = ['/waiting', '/db-status', '/db-check', '/static/', '/favicon.ico']
         if any(request.path.startswith(path) for path in allowed):
+            return None
             return None
             
         # Show waiting page if not connected
