@@ -146,8 +146,8 @@ def connect_database_background():
                         db.session.remove()
                         db.get_engine().dispose()
                         
-                        # Test with actual query
-                        with db.engine.connect() as test_conn:
+                        # Test with actual query using the NEW engine directly
+                        with engine.connect() as test_conn:
                             result = test_conn.execute(text("SELECT COUNT(*) FROM dbo.ServiceStandard"))
                             logging.info(f"Successfully connected to SQL Server with {result.scalar()} standards")
                 
