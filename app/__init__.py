@@ -8,7 +8,6 @@ import logging
 import threading
 import time
 import pyodbc
-import sqlite3
 
 # Initialise extensions globally
 db = SQLAlchemy()
@@ -78,14 +77,14 @@ def create_app():
     from app.views import views_bp
     app.register_blueprint(views_bp)
     
-    # Add waiting page route
+    # Application-level utility routes (not part of main business logic)
     @app.route('/waiting')
     def waiting():
         return render_template('waiting.html')
     
-    # Add database status endpoint
     @app.route('/db-status')
     def db_status():
+        """Database connection status endpoint for monitoring"""
         global db_connected, db_error, db_waking
         with db_lock:
             return {
@@ -109,6 +108,9 @@ def create_app():
                 result = conn.execute(text("SELECT COUNT(*) as total, COUNT(CASE WHEN UPPER(sid) = 'CS' THEN 1 END) as cs_count FROM dbo.ServiceStandard"))
                 row = result.fetchone()
                 
+                if row is None:
+                    return {'error': 'No data returned from query'}, 500
+                
                 # Get sample of CS records
                 cs_records = conn.execute(text("SELECT TOP 5 stdid, sid, ssn, description FROM dbo.ServiceStandard WHERE UPPER(sid) = 'CS'"))
                 cs_data = [{'stdid': r[0], 'sid': r[1], 'ssn': r[2], 'description': r[3]} for r in cs_records]
@@ -131,7 +133,6 @@ def create_app():
         # Allow these endpoints without DB
         allowed = ['/waiting', '/db-status', '/db-check', '/static/', '/favicon.ico']
         if any(request.path.startswith(path) for path in allowed):
-            return None
             return None
             
         # Show waiting page if not connected
@@ -163,7 +164,7 @@ def connect_database_background():
                 # Update the app configuration with the real database URI
                 if app_instance:
                     with app_instance.app_context():
-                        # Dispose old SQLite engine completely
+                        # Dispose temporary SQLite engine completely
                         if db.engine:
                             db.engine.dispose()
                         

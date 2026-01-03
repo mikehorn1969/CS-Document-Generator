@@ -149,8 +149,6 @@ def set_servicestandards():
             # No contract data needed for CS Standards
             contract = {"sid": service_id}
 
-        #standards = loadServiceStandards(service_id) 
-
         if which == "SP Standards":
             contract_record = db.session.scalar(
                 select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
@@ -1588,6 +1586,12 @@ def download_sp_renewal():
     else:
         flash(f"Service Provider Service Renewal uploaded to SharePoint.", "success")
         return redirect(url_for('views.index'))
+
+
+@views_bp.route('/show-docx')
+def show_docx():
+    """Test route for serving DOCX files"""
+    return serve_docx(b'', "test.docx")
 
 
 @views_bp.route('/favicon.ico')
