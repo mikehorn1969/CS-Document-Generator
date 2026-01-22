@@ -124,19 +124,19 @@ def create_app():
         except Exception as e:
             return {'error': str(e)}, 500
     
-    # Redirect to waiting page if DB not connected
+    # Show waiting page if database not connected
     @app.before_request
     def check_db_connection():
         from flask import request
         global db_connected
         
-        # Allow these endpoints without DB
-        allowed = ['/waiting', '/db-status', '/db-check', '/static/', '/favicon.ico']
-        if any(request.path.startswith(path) for path in allowed):
+        # Allow these endpoints without requiring database connection
+        allowed_paths = ['/waiting', '/db-status', '/db-check', '/static/', '/favicon.ico']
+        if any(request.path.startswith(path) for path in allowed_paths):
             return None
             
-        # Show waiting page if not connected
-        if not db_connected and request.path != '/waiting':
+        # For all other routes, show waiting page if database not ready
+        if not db_connected:
             return render_template('waiting.html')
         
         return None

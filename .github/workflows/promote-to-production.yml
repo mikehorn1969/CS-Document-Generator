@@ -1,0 +1,46 @@
+# Manual workflow to promote a commit/branch to production (requires approval via environment protection)
+name: Promote to production - Deploy to cs-document-generator
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to deploy (branch, tag, or commit). Defaults to main.'
+        required: false
+        default: 'main'
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: production   # <--- configure this environment in Settings -> Environments and require reviewers/approvals
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_50BA63C1F4C44A57A8EB4965542945D4 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_A18CA9DC128247F1A7C20C4B65DD3956 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_57A579B34C834BC8ABB5D2890E2FD66E }}
+
+      - name: Deploy to Azure Web App (production)
+        uses: azure/webapps-deploy@v3
+        id: deploy-to-webapp-prod
+        with:
+          app-name: 'cs-document-generator'
+          # slot-name: 'Production'  # add if you deploy to a named slot
