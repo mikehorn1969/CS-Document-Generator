@@ -70,4 +70,5 @@ jobs:
         with:
           app-name: 'cs-deploytest'
           resource-group-name: 'appsvc_linux_uksouth_basic'
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_57A579B34C834BC8ABB5D2890E2FD66E }}
           # slot-name: (omit or set if you use slots on the test app)
