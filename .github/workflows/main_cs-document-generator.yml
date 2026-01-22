@@ -64,11 +64,13 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_A18CA9DC128247F1A7C20C4B65DD3956 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_57A579B34C834BC8ABB5D2890E2FD66E }}
 
+      - name: Set Azure subscription context
+        run: az account set --subscription ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_57A579B34C834BC8ABB5D2890E2FD66E }}
+
       - name: Deploy to Azure Web App (test)
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp-test
         with:
           app-name: 'cs-deploytest'
           resource-group-name: 'appsvc_linux_uksouth_basic'
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_57A579B34C834BC8ABB5D2890E2FD66E }}
           # slot-name: (omit or set if you use slots on the test app)
