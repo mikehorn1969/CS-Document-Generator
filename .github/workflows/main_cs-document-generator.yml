@@ -69,4 +69,5 @@ jobs:
         id: deploy-to-webapp-test
         with:
           app-name: 'cs-deploytest'
+          resource-group-name: 'appsvc_linux_uksouth_basic'
           # slot-name: (omit or set if you use slots on the test app)
