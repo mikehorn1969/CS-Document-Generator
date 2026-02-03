@@ -57,12 +57,21 @@ jobs:
         with:
           name: python-app
 
+      - name: Check AZURE secrets exist
+        run: |
+          if [ -z "${{ secrets.AZURE_CLIENT_ID }}" ]; then echo "AZURE_CLIENT_ID missing"; exit 1; fi
+          if [ -z "${{ secrets.AZURE_TENANT_ID }}" ]; then echo "AZURE_TENANT_ID missing"; exit 1; fi
+          if [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]; then echo "AZURE_SUBSCRIPTION_ID missing"; exit 1; fi
+          if [ -z "${{ secrets.AZURE_CLIENT_SECRET }}" ]; then echo "AZURE_CLIENT_SECRET missing"; exit 1; fi
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
+          auth-type: 'service-principal'
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       - name: Deploy to Azure Web App (test)
         uses: azure/webapps-deploy@v3
