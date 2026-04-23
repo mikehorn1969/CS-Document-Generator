@@ -48,7 +48,7 @@ jobs:
       id-token: write
       contents: read
     environment:
-      name: Test
+      name: cs-deploytest
       url: ${{ steps.deploy-to-webapp-test.outputs.webapp-url }}
 
     steps:
