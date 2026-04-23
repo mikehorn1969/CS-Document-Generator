@@ -67,5 +67,5 @@ jobs:
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp-test
         with:
-          app-name: 'cs-deploytest'
+          app-name: 'cs-dg-deploytest'
           # slot-name: (omit or set if you use slots on the test app)
