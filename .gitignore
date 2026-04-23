@@ -16,3 +16,5 @@ db-scripts
 cs-data-project 
 test_odbc.py
 samples/
+federated-cred.json
+SETUP_FEDERATED_IDENTITY.md
