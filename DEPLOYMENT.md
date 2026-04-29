@@ -33,7 +33,7 @@ You can also trigger the deployment manually:
 
 2. **Deploy Job**:
    - Downloads the application artifact
-   - Authenticates with Azure using OpenID Connect (OIDC)
+   - Authenticates with Azure using a service principal secret
    - Enables App Service remote build (`SCM_DO_BUILD_DURING_DEPLOYMENT`, `ENABLE_ORYX_BUILD`)
    - Deploys to Azure App Service `cs-deploytest`
    - App Service installs Python dependencies from `requirements.txt` during deployment
@@ -42,10 +42,11 @@ You can also trigger the deployment manually:
 
 The workflow requires the following GitHub secrets to be configured:
 - `AZURE_CLIENT_ID` - Azure service principal client ID
+- `AZURE_CLIENT_SECRET` - Azure service principal client secret
 - `AZURE_TENANT_ID` - Azure tenant ID  
 - `AZURE_SUBSCRIPTION_ID` - Azure subscription ID
 
-These secrets are used for federated credential authentication with Azure.
+These secrets are used for service principal authentication with Azure.
 
 The workflow also requires:
 - `AZURE_WEBAPP_PUBLISH_PROFILE` - publish profile used by the final deployment step
