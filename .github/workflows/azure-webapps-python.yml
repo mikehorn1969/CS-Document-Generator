@@ -49,12 +49,18 @@ jobs:
         # PYTHONPATH will be set in startup.sh to include this directory
         run: pip install --target=".python_packages/lib/site-packages" -r requirements.txt
 
+      - name: Verify packaged dependencies
+        run: |
+          test -d .python_packages/lib/site-packages
+          ls -la .python_packages/lib/site-packages | head -n 40
+
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
+          include-hidden-files: true
           path: |
             .
             !venv/
