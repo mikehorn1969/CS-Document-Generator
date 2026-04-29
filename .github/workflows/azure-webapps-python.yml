@@ -44,15 +44,25 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
          # cache: 'pip'
 
+      - name: Install dependencies into .python_packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir --target=".python_packages/lib/site-packages" -r requirements.txt
+
+      - name: Verify packaged dependencies
+        run: |
+          test -f .python_packages/lib/site-packages/flask_sqlalchemy/__init__.py
+          ls -la .python_packages/lib/site-packages | head -n 40
+
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
+          include-hidden-files: true
           path: |
             .
-            !.python_packages/
             !venv/
 
   deploy:
