@@ -27,26 +27,31 @@ You can also trigger the deployment manually:
 1. **Build Job**:
    - Checks out the code
    - Sets up Python 3.11
-   - Creates a virtual environment
-   - Installs dependencies from `requirements.txt`
-   - Uploads the application as an artifact
+   - Pre-installs all dependencies from `requirements.txt` into `.python_packages/lib/site-packages`
+   - Uploads the application and `.python_packages` folder as an artifact
 
 2. **Deploy Job**:
    - Downloads the application artifact
-   - Authenticates with Azure using a service principal secret
-   - Enables App Service remote build (`SCM_DO_BUILD_DURING_DEPLOYMENT`, `ENABLE_ORYX_BUILD`)
-   - Deploys to Azure App Service `cs-deploytest`
-   - App Service installs Python dependencies from `requirements.txt` during deployment
+   - Deploys to Azure App Service `cs-deploytest` using the publish profile
+   - App Service runs the `startup.sh` script which sets `PYTHONPATH` and launches gunicorn
 
-## Required Secrets
+## Required GitHub Secrets
 
 The workflow requires the following GitHub secrets to be configured:
-- `AZURE_CLIENT_ID` - Azure service principal client ID
-- `AZURE_CLIENT_SECRET` - Azure service principal client secret
-- `AZURE_TENANT_ID` - Azure tenant ID  
-- `AZURE_SUBSCRIPTION_ID` - Azure subscription ID
+- `AZURE_WEBAPP_PUBLISH_PROFILE` - Publish profile from Azure App Service
 
-These secrets are used for service principal authentication with Azure.
+## Required Azure App Service Setting (One-time Setup)
+
+To enable the deployment to work, set the following in the Azure portal:
+
+1. Go to **cs-deploytest** App Service → **Configuration** → **Application settings**
+2. Add a new application setting:
+   - **Name**: `STARTUP_COMMAND`
+   - **Value**: `bash /home/site/wwwroot/startup.sh`
+3. Click **Save**
+
+This tells App Service to run the startup script on boot, which sets `PYTHONPATH` and launches gunicorn with the pre-installed packages from `.python_packages`.
+
 
 The workflow also requires:
 - `AZURE_WEBAPP_PUBLISH_PROFILE` - publish profile used by the final deployment step

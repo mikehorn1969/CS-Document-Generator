@@ -44,6 +44,11 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
          # cache: 'pip'
 
+      - name: Install dependencies into .python_packages
+        # Pre-install packages so they are reliably available in deployment
+        # PYTHONPATH will be set in startup.sh to include this directory
+        run: pip install --target=".python_packages/lib/site-packages" -r requirements.txt
+
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Upload artifact for deployment jobs
@@ -52,7 +57,6 @@ jobs:
           name: python-app
           path: |
             .
-            !.python_packages/
             !venv/
 
   deploy:
@@ -70,24 +74,6 @@ jobs:
         with:
           name: python-app
           path: .
-
-      - name: Azure login
-        uses: azure/login@v3
-        with:
-          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
-
-      - name: Ensure Oryx remote build is enabled
-        # Oryx will pip install requirements.txt on the App Service during deployment.
-        # This is the only reliable way to ensure packages end up on the correct sys.path.
-        uses: azure/appservice-settings@v1
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          app-settings-json: |
-            [
-              { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "true",  "slotSetting": false },
-              { "name": "ENABLE_ORYX_BUILD",              "value": "true",  "slotSetting": false },
-              { "name": "WEBSITE_WEBDEPLOY_USE_SCM",      "value": "true",  "slotSetting": false }
-            ]
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
