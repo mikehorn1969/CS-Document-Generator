@@ -1,6 +1,5 @@
 #!/bin/bash
 # Startup script for Azure App Service
-# Sets PYTHONPATH to include pre-installed packages and launches gunicorn
+# Launches gunicorn with the wsgi module that sets up sys.path correctly
 
-export PYTHONPATH="/home/site/wwwroot/.python_packages/lib/site-packages:$PYTHONPATH"
-gunicorn --bind 0.0.0.0:8000 --workers 4 run:app
+exec gunicorn --bind 0.0.0.0:8000 --workers 4 wsgi:app
