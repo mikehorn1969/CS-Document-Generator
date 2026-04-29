@@ -1,9 +1,12 @@
 #!/bin/bash
 # Startup script for Azure App Service
 # Rebuilds dependencies on Azure so native wheels match the App Service runtime,
-# then launches gunicorn with the wsgi module that sets up sys.path correctly.
+# validates imports, then launches gunicorn.
 
 set -e
+set -o pipefail
+
+trap 'echo "[startup] failed at line ${LINENO} with exit code $?" >&2' ERR
 
 cd /home/site/wwwroot
 
@@ -20,6 +23,7 @@ if [ ! -d "$PACKAGE_DIR" ] || [ ! -f "$PACKAGE_DIR/flask_sqlalchemy/__init__.py"
 	mkdir -p "$PACKAGE_DIR"
 	python -m pip install --upgrade --no-cache-dir --target="$PACKAGE_DIR" -r requirements.txt
 	printf "%s" "$REQ_HASH" > "$STAMP_FILE"
+	echo "[startup] dependency install complete"
 else
 	echo "[startup] reusing existing dependency directory"
 fi
@@ -30,7 +34,7 @@ import importlib
 import sys
 import traceback
 
-modules = ["flask_sqlalchemy", "azure.identity"]
+modules = ["flask_sqlalchemy", "cryptography"]
 
 for module_name in modules:
 	try:
