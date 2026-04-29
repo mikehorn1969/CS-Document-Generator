@@ -11,11 +11,23 @@ PACKAGE_DIR=".python_packages/lib/site-packages"
 STAMP_FILE=".python_packages/.requirements-sha"
 REQ_HASH=$(sha256sum requirements.txt | awk '{print $1}')
 
-if [ ! -f "$STAMP_FILE" ] || [ "$(cat "$STAMP_FILE")" != "$REQ_HASH" ]; then
+echo "[startup] startup.sh running from $(pwd)"
+echo "[startup] requirements hash: $REQ_HASH"
+
+if [ ! -d "$PACKAGE_DIR" ] || [ ! -f "$PACKAGE_DIR/flask_sqlalchemy/__init__.py" ] || [ ! -f "$STAMP_FILE" ] || [ "$(cat "$STAMP_FILE")" != "$REQ_HASH" ]; then
+	echo "[startup] installing dependencies into $PACKAGE_DIR"
 	rm -rf "$PACKAGE_DIR"
 	mkdir -p "$PACKAGE_DIR"
 	python -m pip install --upgrade --no-cache-dir --target="$PACKAGE_DIR" -r requirements.txt
 	printf "%s" "$REQ_HASH" > "$STAMP_FILE"
+else
+	echo "[startup] reusing existing dependency directory"
 fi
+
+PYTHONPATH="/home/site/wwwroot/$PACKAGE_DIR:$PYTHONPATH" python - <<'PY'
+import flask_sqlalchemy
+import azure.identity
+print(f"[startup] imports ok: flask_sqlalchemy={flask_sqlalchemy.__version__}, azure.identity={azure.identity.__version__}")
+PY
 
 exec gunicorn --bind 0.0.0.0:8000 --workers 4 wsgi:app
