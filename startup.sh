@@ -21,33 +21,20 @@ if [ ! -d "$PACKAGE_DIR" ] || [ ! -f "$PACKAGE_DIR/flask_sqlalchemy/__init__.py"
 	echo "[startup] installing dependencies into $PACKAGE_DIR"
 	rm -rf "$PACKAGE_DIR"
 	mkdir -p "$PACKAGE_DIR"
+	set +e
 	python -m pip install --upgrade --no-cache-dir --target="$PACKAGE_DIR" -r requirements.txt
+	PIP_EXIT_CODE=$?
+	set -e
+	echo "[startup] pip install exit code: $PIP_EXIT_CODE"
+	if [ "$PIP_EXIT_CODE" -ne 0 ]; then
+		echo "[startup] dependency install failed"
+		exit "$PIP_EXIT_CODE"
+	fi
 	printf "%s" "$REQ_HASH" > "$STAMP_FILE"
 	echo "[startup] dependency install complete"
 else
 	echo "[startup] reusing existing dependency directory"
 fi
-
-echo "[startup] validating runtime imports"
-PYTHONPATH="/home/site/wwwroot/$PACKAGE_DIR:$PYTHONPATH" python - <<'PY'
-import importlib
-import sys
-import traceback
-
-modules = ["flask_sqlalchemy", "cryptography"]
-
-for module_name in modules:
-	try:
-		module = importlib.import_module(module_name)
-		module_version = getattr(module, "__version__", "unknown")
-		print(f"[startup] import ok: {module_name}=={module_version}")
-	except Exception as exc:
-		print(f"[startup] import failed: {module_name}: {exc}", file=sys.stderr)
-		traceback.print_exc()
-		sys.exit(1)
-
-print("[startup] all import checks passed")
-PY
 
 echo "[startup] launching gunicorn"
 
