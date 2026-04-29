@@ -20,36 +20,29 @@ db_waking = False  # Flag to indicate database is waking up
 app_instance = None  # Store app instance for background thread
 db_engine = None  # Store the engine globally
 
-# Initialise the app
-def create_app():
-    global app_instance
-    app = Flask(__name__)
-    app_instance = app
 
-    # Load the config
-    dotenv.load_dotenv()
+def initialize_database_connection(app=None):
+    """Attempt database connection and update app config/status flags."""
+    global db_connected, db_error, db_waking, db_engine, app_instance
 
-    config_mode = get_secret('FLASK_CONFIG', 'FLASK-CONFIG')
-    app.config.from_object(f'config.{config_mode}')
-    app.secret_key = secrets.token_hex(32)
+    target_app = app or app_instance
 
-    # Try to connect to database on startup
-    global db_connected, db_error, db_waking, db_engine
     try:
         engine = build_engine()
         if engine:
-            # Test the connection
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            app.config['SQLALCHEMY_DATABASE_URI'] = str(engine.url)
+            # build_engine already validates connectivity; store URI for Flask-SQLAlchemy.
+            if target_app:
+                target_app.config['SQLALCHEMY_DATABASE_URI'] = str(engine.url)
             db_engine = engine
-            
+
             with db_lock:
                 db_connected = True
                 db_error = None
                 db_waking = False
-            
+
             logging.info("Database connected successfully")
+            return True
+
     except Exception as e:
         error_str = str(e)
         # Check if it's a serverless database waking up (error 40613 OR timeout errors)
@@ -68,9 +61,28 @@ def create_app():
                 db_connected = False
                 db_error = error_str
                 db_waking = False
-        
-        # Set dummy URI to prevent SQLAlchemy errors
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+
+    """ # Set dummy URI to prevent SQLAlchemy errors when DB is not ready.  LET THE CODE HANDLE THIS    
+    if target_app:
+        target_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:' """
+
+    return False
+
+# Initialise the app
+def create_app():
+    global app_instance
+    app = Flask(__name__)
+    app_instance = app
+
+    # Load the config
+    dotenv.load_dotenv()
+
+    config_mode = get_secret('FLASK_CONFIG', 'FLASK-CONFIG')
+    app.config.from_object(f'config.{config_mode}')
+    app.secret_key = secrets.token_hex(32)
+
+    # Try to connect to database on startup
+    initialize_database_connection(app)
     
     db.init_app(app)
 
@@ -218,9 +230,10 @@ def build_engine():
     from urllib.parse import quote_plus
     
     # Debug: Check available drivers
+    available_drivers = []
     try:
-        available_drivers = pyodbc.drivers()
-        logging.info(f"Available ODBC drivers: {list(available_drivers)}")
+        available_drivers = list(pyodbc.drivers())
+        logging.info(f"Available ODBC drivers: {available_drivers}")
     except Exception as e:
         logging.error(f"Failed to list ODBC drivers: {e}")
     
@@ -240,8 +253,20 @@ def build_engine():
     if not all([sql_username, sql_password, sql_servername, sql_databasename]):
         raise RuntimeError("Missing one or more required SQL environment variables for db connection.")
     
-    # Only try ODBC Driver 18 for serverless databases
-    driver = "ODBC Driver 18 for SQL Server"
+    # Select the best installed SQL Server ODBC driver.
+    preferred_drivers = [
+        "ODBC Driver 18 for SQL Server",
+        "ODBC Driver 17 for SQL Server",
+        "ODBC Driver 13 for SQL Server",
+        "ODBC Driver 11 for SQL Server",
+        "SQL Server",
+    ]
+    driver = next((d for d in preferred_drivers if d in available_drivers), None)
+    if not driver:
+        raise RuntimeError(
+            "No compatible SQL Server ODBC driver found. "
+            "Install 'ODBC Driver 18 for SQL Server' (or 17)."
+        )
     
     # Connection string for Azure SQL serverless with MUCH longer timeouts
     odbc_params = (

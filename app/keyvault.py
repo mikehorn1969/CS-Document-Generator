@@ -46,5 +46,5 @@ def get_secret(env_name: str, kv_secret_name: Optional[str] = None) -> str:
         return result if result is not None else ""
     except Exception as exc:
         raise KeyError(
-            f"Failed to retrieve '{secret_name}' from Azure Key Vault."
+            f"Failed to retrieve '{secret_name}' from Azure Key Vault '{os.environ.get('KEY_VAULT_NAME', '')}'."
         ) from exc

@@ -24,10 +24,13 @@ from typing import List
 
 views_bp = Blueprint('views', __name__)
 
-
 @views_bp.route('/', methods=["GET", "POST"])
 def index():
-    return render_template('index.html', sid=session.get('sid', ''))
+    return render_template(
+        'index.html',
+        sid=session.get('sid', ''),
+        flask_config=os.getenv('FLASK_CONFIG', 'not set')
+    )
 
 
 @views_bp.route('/searchcandidates')
