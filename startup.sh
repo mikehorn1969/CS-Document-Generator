@@ -24,10 +24,27 @@ else
 	echo "[startup] reusing existing dependency directory"
 fi
 
+echo "[startup] validating runtime imports"
 PYTHONPATH="/home/site/wwwroot/$PACKAGE_DIR:$PYTHONPATH" python - <<'PY'
-import flask_sqlalchemy
-import azure.identity
-print(f"[startup] imports ok: flask_sqlalchemy={flask_sqlalchemy.__version__}, azure.identity={azure.identity.__version__}")
+import importlib
+import sys
+import traceback
+
+modules = ["flask_sqlalchemy", "azure.identity"]
+
+for module_name in modules:
+	try:
+		module = importlib.import_module(module_name)
+		module_version = getattr(module, "__version__", "unknown")
+		print(f"[startup] import ok: {module_name}=={module_version}")
+	except Exception as exc:
+		print(f"[startup] import failed: {module_name}: {exc}", file=sys.stderr)
+		traceback.print_exc()
+		sys.exit(1)
+
+print("[startup] all import checks passed")
 PY
+
+echo "[startup] launching gunicorn"
 
 exec gunicorn --bind 0.0.0.0:8000 --workers 4 wsgi:app
