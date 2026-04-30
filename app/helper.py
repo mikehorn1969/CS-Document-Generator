@@ -27,11 +27,16 @@ def load_config() -> dict[str, str | dict]:
     c7_key = get_secret("C7APIKey")
     c7_userid = get_secret("C7USERID")
     ch_key = get_secret("CHKEY")
+    prefix = get_secret("NAMEAPI_KEYPREFIX", "NAMEAPI-KEYPREFIX")
+    suffix = get_secret("NAMEAPI_KEYSUFFIX", "NAMEAPI-KEYSUFFIX")
+    nameapi_key = f"{prefix}-{suffix}"
+
+    # SQL Database credentials
     sql_username = get_secret("SQL_USERNAME", "SQL-USERNAME")
     sql_password = get_secret("SQL_PASSWORD", "SQL-PASSWORD")
-    prefix = get_secret("NAMEAPI-KEYPREFIX")
-    suffix = get_secret("NAMEAPI-KEYSUFFIX")
-    nameapi_key = f"{prefix}-{suffix}"
+    sql_servername = get_secret("SQL_SERVERNAME", "SQL-SERVERNAME")
+    sql_databasename = get_secret("SQL_DATABASE", "SQL-DATABASE")
+    sql_port = get_secret("SQL_PORT", "SQL-PORT")
 
     c7_hdr = {
         "Cache-Control": "no-cache",
@@ -46,6 +51,9 @@ def load_config() -> dict[str, str | dict]:
         "C7_HDR": c7_hdr,
         "SQL_USERNAME": sql_username,
         "SQL_PASSWORD": sql_password,
+        "SQL_SERVERNAME": sql_servername,
+        "SQL_DATABASE": sql_databasename,
+        "SQL_PORT": sql_port
     }
 
 

@@ -11,7 +11,7 @@
     <h1>Document Generator</h1>
     <h2 id="connection-heading">Connecting to Database...</h2>
 
-    <div class="waiting-container">
+    <div class="waiting-container" data-next-url="{{ next_url or url_for('views.index') }}">
         <div id="loading-state">
             <div class="waiting-spinner"></div>
             <p id="loading-message">Please wait while we establish a connection to the database.</p>
@@ -33,16 +33,22 @@
     <script>
         let pollCount = 0;
         const maxPolls = 120; // Poll for up to 10 minutes for serverless wake-up
+        const nextUrl = document.querySelector('.waiting-container')?.dataset.nextUrl || '/';
         
         function checkDatabaseStatus() {
-            fetch('/db-status')
+            fetch(`/db-status?ts=${Date.now()}`, {
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            })
                 .then(response => response.json())
                 .then(data => {
                     pollCount++;
                     
                     if (data.connected) {
-                        // Database is connected, redirect to home page
-                        window.location.href = '/';
+                        // Database is connected, redirect to the page that was waiting.
+                        window.location.replace(nextUrl);
                     } else if (data.waking) {
                         // Database is waking up - show special message
                         document.getElementById('waking-info').style.display = 'block';

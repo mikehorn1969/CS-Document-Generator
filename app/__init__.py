@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, redirect, render_template, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine, text
 from app.keyvault import get_secret
@@ -11,6 +11,8 @@ import pyodbc
 
 # Initialise extensions globally
 db = SQLAlchemy()
+
+from app.helper import load_config
 
 # Global flag for database connection status
 db_connected = False
@@ -92,18 +94,25 @@ def create_app():
     # Application-level utility routes (not part of main business logic)
     @app.route('/waiting')
     def waiting():
-        return render_template('waiting.html')
+        global db_connected
+
+        next_url = request.args.get('next') or url_for('views.index')
+        if db_connected:
+            return redirect(next_url)
+
+        return render_template('waiting.html', next_url=next_url)
     
     @app.route('/db-status')
     def db_status():
         """Database connection status endpoint for monitoring"""
         global db_connected, db_error, db_waking
         with db_lock:
-            return {
+            response = {
                 'connected': db_connected,
                 'error': db_error,
                 'waking': db_waking
             }
+        return response, 200, {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'}
     
     # Add diagnostic endpoint to check data
     @app.route('/db-check')
@@ -139,7 +148,6 @@ def create_app():
     # Show waiting page if database not connected
     @app.before_request
     def check_db_connection():
-        from flask import request
         global db_connected
         
         # Allow these endpoints without requiring database connection
@@ -149,7 +157,10 @@ def create_app():
             
         # For all other routes, show waiting page if database not ready
         if not db_connected:
-            return render_template('waiting.html')
+            next_url = request.full_path if request.query_string else request.path
+            if next_url.endswith('?'):
+                next_url = next_url[:-1]
+            return render_template('waiting.html', next_url=next_url)
         
         return None
 
@@ -238,18 +249,13 @@ def build_engine():
         logging.error(f"Failed to list ODBC drivers: {e}")
     
     # Get secrets from environment or Key Vault
-    sql_username = get_secret("SQL_USERNAME", "SQL-USERNAME")
-    sql_password = get_secret("SQL_PASSWORD", "SQL-PASSWORD")
-    sql_servername = get_secret("SQL_SERVERNAME", "SQL-SERVERNAME")
-    sql_databasename = get_secret("SQL_DATABASE", "SQL-DATABASE")
-    sql_port = get_secret("SQL_PORT", "SQL-PORT")
-    
-    # Debug: Log connection parameters (without password)
-    logging.info(f"SQL Server: {sql_servername}")
-    logging.info(f"SQL Port: {sql_port}")
-    logging.info(f"SQL Database: {sql_databasename}")
-    logging.info(f"SQL Username: {sql_username}")
-    
+    config = load_config()
+    sql_username = config.get("SQL_USERNAME")
+    sql_password = config.get("SQL_PASSWORD")
+    sql_servername = config.get("SQL_SERVERNAME")
+    sql_databasename = config.get("SQL_DATABASE")
+    sql_port = config.get("SQL_PORT")
+        
     if not all([sql_username, sql_password, sql_servername, sql_databasename]):
         raise RuntimeError("Missing one or more required SQL environment variables for db connection.")
     
