@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import requests
 import time
-from typing import Optional, Dict
+from typing import Optional, Dict, Callable, TypeVar, Any
 from sqlalchemy.exc import OperationalError, DisconnectionError
 from app.keyvault import get_secret
 from docx import Document
@@ -12,6 +12,8 @@ from datetime import datetime
 import tempfile
 from azure.identity import DefaultAzureCredential
 from app import db
+
+T = TypeVar("T")
 
 
 # -----------------------------
@@ -617,41 +619,110 @@ def execute_db_query_with_retry(stmt, operation_name="database query"):
     Returns:
         Query results or empty list if all retries fail
     """
+    return db_query_scalars(stmt, operation_name=operation_name, default=[])
+
+
+def is_database_connected() -> bool:
+    from app import db_connected
+    return bool(db_connected)
+
+
+def _rollback_session_safely() -> None:
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
+
+
+def _run_with_db_retry(
+    action: Callable[[], T],
+    operation_name: str,
+    default: T,
+    max_retries: int = 3,
+    initial_delay: float = 1.0,
+) -> T:
     import logging
-    max_retries = 3
-    retry_delay = 1  # seconds
-    
+
+    if not is_database_connected():
+        logging.warning(f"{operation_name}: Database not connected, returning default")
+        return default
+
+    retry_delay = initial_delay
     for attempt in range(max_retries):
         try:
-            query_result = db.session.execute(stmt).scalars().all()
-            logging.info(f"{operation_name}: Successfully executed, returned {len(query_result)} results")
-            return query_result
-            
+            return action()
         except (OperationalError, DisconnectionError) as e:
             error_msg = f"{operation_name}: Database connection error on attempt {attempt + 1}: {str(e)}"
             logging.error(error_msg)
             if debugMode():
                 print(f"{datetime.now().strftime('%H:%M:%S')} {error_msg}")
-            
+
+            _rollback_session_safely()
+
             if attempt < max_retries - 1:
-                # Close the current session to ensure clean retry
-                try:
-                    db.session.rollback()
-                except:
-                    pass
-                
                 time.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
+                retry_delay *= 2
                 continue
-            else:
-                logging.error(f"{operation_name}: All retry attempts failed, returning empty list")
-                if debugMode():
-                    print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: All retry attempts failed, returning empty list")
-                return []
-        
+
+            logging.error(f"{operation_name}: All retry attempts failed, returning default")
+            if debugMode():
+                print(f"{datetime.now().strftime('%H:%M:%S')} {operation_name}: All retry attempts failed, returning default")
+            return default
         except Exception as e:
             error_msg = f"{operation_name}: Unexpected error: {str(e)}"
             logging.error(error_msg)
             if debugMode():
                 print(f"{datetime.now().strftime('%H:%M:%S')} {error_msg}")
-            return []
+            _rollback_session_safely()
+            return default
+
+    return default
+
+
+def db_query_scalars(stmt, operation_name: str = "database query", default: Optional[list[Any]] = None) -> list[Any]:
+    fallback = [] if default is None else default
+    return _run_with_db_retry(
+        action=lambda: db.session.execute(stmt).scalars().all(),
+        operation_name=operation_name,
+        default=fallback,
+    )
+
+
+def db_query_scalar(stmt, operation_name: str = "database scalar query", default: Any = None) -> Any:
+    return _run_with_db_retry(
+        action=lambda: db.session.scalar(stmt),
+        operation_name=operation_name,
+        default=default,
+    )
+
+
+def db_query_one_or_none(stmt, operation_name: str = "database single-row query", default: Any = None) -> Any:
+    return _run_with_db_retry(
+        action=lambda: db.session.execute(stmt).scalar_one_or_none(),
+        operation_name=operation_name,
+        default=default,
+    )
+
+
+def db_get_by_pk(model, key, operation_name: str = "database lookup", default: Any = None) -> Any:
+    return _run_with_db_retry(
+        action=lambda: db.session.get(model, key),
+        operation_name=operation_name,
+        default=default,
+    )
+
+
+def db_commit(operation_name: str = "database commit") -> bool:
+    return _run_with_db_retry(
+        action=lambda: (db.session.commit() or True),
+        operation_name=operation_name,
+        default=False,
+    )
+
+
+def db_add(instance: Any) -> None:
+    db.session.add(instance)
+
+
+def db_delete(instance: Any) -> None:
+    db.session.delete(instance)
