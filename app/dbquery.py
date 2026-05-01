@@ -2,17 +2,15 @@
 from datetime import datetime
 from flask import session
 from app.models import ServiceArrangement, ServiceStandard
-from app.helper import execute_db_query_with_retry, debugMode
+from app.helper import db_query_scalars, is_database_connected, debugMode
 from sqlalchemy import select, func
-from app import db
 
 def loadServiceStandards(service_id):
 
-    from app import db_connected, db_engine
-    from flask import current_app
+    from app import db_engine
     import logging
     
-    if not db_connected:
+    if not is_database_connected():
         logging.warning("loadServiceStandards: Database not connected, returning empty list")
         if debugMode():
             print("Database not connected yet, returning empty list")
@@ -35,7 +33,7 @@ def loadServiceStandards(service_id):
     if debugMode():
         print(f"{datetime.now().strftime('%H:%M:%S')} loadServiceStandards: SQL statement: {stmt}")
     logging.info(f"loadServiceStandards: Executing query for sid='{service_id}'")
-    standards = execute_db_query_with_retry(stmt, "loadServiceStandards")
+    standards = db_query_scalars(stmt, operation_name="loadServiceStandards")
     logging.info(f"loadServiceStandards: Query returned {len(standards) if standards else 0} records")
 
     # Store SP standards in session for later use
@@ -47,10 +45,7 @@ def loadServiceStandards(service_id):
 
 def loadServiceArrangements(service_id):
     
-    from app import db_connected
-    from flask import current_app
-    
-    if not db_connected:
+    if not is_database_connected():
         if debugMode():
             print("Database not connected yet, returning empty list")
         return []   
@@ -65,7 +60,7 @@ def loadServiceArrangements(service_id):
 
     # Use case-insensitive comparison for Azure SQL Server compatibility
     stmt = select(ServiceArrangement).where(func.upper(ServiceArrangement.sid) == func.upper(service_id))
-    arrangements = execute_db_query_with_retry(stmt, "loadServiceArrangements")
+    arrangements = db_query_scalars(stmt, operation_name="loadServiceArrangements")
 
     # Store arrangements in session for later use
     if arrangements:

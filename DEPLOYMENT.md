@@ -4,7 +4,7 @@ This repository is configured to automatically deploy to Azure App Service when 
 
 ## Deployment Workflow
 
-**File**: `.github/workflows/main_cs-document-generator.yml`
+**File**: `.github/workflows/azure-webapps-python.yml`
 
 **Target Environment**: Azure App Service `cs-deploytest`
 
@@ -17,7 +17,7 @@ The workflow automatically triggers when:
 
 You can also trigger the deployment manually:
 1. Go to the Actions tab in GitHub
-2. Select "Build and deploy Python app - deploy to cs-deploytest"
+2. Select "Build and deploy Python app to Azure Web App"
 3. Click "Run workflow"
 4. Select the branch to deploy
 5. Click "Run workflow"
@@ -33,28 +33,21 @@ You can also trigger the deployment manually:
 2. **Deploy Job**:
    - Downloads the application artifact
    - Deploys to Azure App Service `cs-deploytest` using the publish profile
-   - App Service runs the `startup.sh` script which sets `PYTHONPATH` and launches gunicorn
+   - App Service starts the app from `run:app` (the app entrypoint in `run.py`)
 
 ## Required GitHub Secrets
 
 The workflow requires the following GitHub secrets to be configured:
 - `AZURE_WEBAPP_PUBLISH_PROFILE` - Publish profile from Azure App Service
 
-## Required Azure App Service Setting (One-time Setup)
+## Runtime Notes
 
-To enable the deployment to work, set the following in the Azure portal:
+- There is no repository `startup.sh` script.
+- `run.py` prepends `.python_packages/lib/site-packages` to `sys.path`, so pre-packaged dependencies are available at runtime.
+- Ensure the App Service startup command points to the Flask app entrypoint (for example, a Gunicorn command targeting `run:app`) if you are using a custom startup command.
 
-1. Go to **cs-deploytest** App Service → **Configuration** → **Application settings**
-2. Add a new application setting:
-   - **Name**: `STARTUP_COMMAND`
-   - **Value**: `bash /home/site/wwwroot/startup.sh`
-3. Click **Save**
-
-This tells App Service to run the startup script on boot, which sets `PYTHONPATH` and launches gunicorn with the pre-installed packages from `.python_packages`.
-
-
-The workflow also requires:
-- `AZURE_WEBAPP_PUBLISH_PROFILE` - publish profile used by the final deployment step
+The workflow requires:
+- `AZURE_WEBAPP_PUBLISH_PROFILE` - publish profile used by the deployment step
 
 ## Enabling the Workflow
 
@@ -68,6 +61,6 @@ If the workflow is disabled, you can enable it:
 ## Production Deployment
 
 For production deployments to `cs-document-generator`, use the separate workflow:
-- **File**: `.github/workflows/promote-to-production.yml`
+- **File**: `.github/workflows/deploy-production.yml`
 - **Trigger**: Manual only (workflow_dispatch)
-- **Environment**: Production (requires approval)
+- **Environment**: `cs-document-generator`

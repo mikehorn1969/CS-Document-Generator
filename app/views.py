@@ -1,8 +1,6 @@
 import os
 
-from app import db
-
-from flask import render_template, request, redirect, url_for, session, send_file, flash, jsonify
+from flask import render_template, request, redirect, url_for, session, send_file, flash, jsonify, abort
 from flask import Blueprint, send_from_directory
 
 from app.models import ServiceStandard, ServiceArrangement, ServiceContract
@@ -11,7 +9,18 @@ from app.c7query import  searchC7Candidate, getC7ContactsByCompany, gatherC7data
 from app.dbquery import loadServiceStandards, loadServiceArrangements
 from app.chquery import validateCH, searchCH
 from app.classes import Company
-from app.helper import formatName, uploadToSharePoint, serve_docx, downloadFromSharePoint
+from app.helper import (
+    formatName,
+    uploadToSharePoint,
+    serve_docx,
+    downloadFromSharePoint,
+    db_query_scalar,
+    db_query_one_or_none,
+    db_get_by_pk,
+    db_commit,
+    db_add,
+    db_delete,
+)
 from datetime import datetime
 from sqlalchemy import select, func
 import pandas as pd
@@ -147,14 +156,16 @@ def set_servicestandards():
             # Load available contract data
             contract = session_contract
             if contract:
+                contract.setdefault("serviceid", contract.get("sid", ""))
                 session['sessionContract'] = contract                
         else:
             # No contract data needed for CS Standards
-            contract = {"sid": service_id}
+            contract = {"sid": service_id, "serviceid": service_id}
 
         if which == "SP Standards":
-            contract_record = db.session.scalar(
-                select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
+            contract_record = db_query_scalar(
+                select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)),
+                operation_name="set_servicestandards.get_contract_context",
             )
             if contract_record:
                 contract['context'] = contract_record.context or ''
@@ -175,7 +186,11 @@ def set_servicestandards():
                 rawDesc = desc.strip().strip('"')    
                 record = None
                 if stdid and stdid.isdigit():
-                    record = ServiceStandard.query.get(int(stdid))  
+                    record = db_get_by_pk(
+                        ServiceStandard,
+                        int(stdid),
+                        operation_name="set_servicestandards.lookup_standard",
+                    )
                 if record:
                     record.ssn = ssn.strip()
                     record.description = rawDesc
@@ -185,9 +200,11 @@ def set_servicestandards():
                         new_standard.sid = service_id
                         new_standard.ssn = ssn.strip()
                         new_standard.description = rawDesc
-                        db.session.add(new_standard)
+                        db_add(new_standard)
         
-        db.session.commit()
+        if not db_commit("set_servicestandards.save_standards"):
+            flash("Failed to save service standards due to a database error.", "error")
+            return redirect(url_for('views.set_servicestandards', which=which))
 
         # Store standards in session for later use
         #session['serviceStandards'] = [s.to_dict() for s in standards]
@@ -206,18 +223,21 @@ def set_servicestandards():
             raw = request.form.get('context')
             specialconditions = raw.strip() if isinstance(raw, str) else ''
 
-            contract_record = db.session.scalar(
-                select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
+            contract_record = db_query_scalar(
+                select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)),
+                operation_name="set_servicestandards.lookup_contract",
             )
             if not contract_record:
                 contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions, context=context)
-                db.session.add(contract_record)
+                db_add(contract_record)
             else:
                 contract_record.context = context
                 contract_record.specialconditions = specialconditions
 
             # Commit all changes once
-            db.session.commit()
+            if not db_commit("set_servicestandards.save_contract"):
+                flash("Failed to save contract context due to a database error.", "error")
+                return redirect(url_for('views.set_servicestandards', which=which))
 
             
     # (re)load for display 
@@ -230,10 +250,28 @@ def delete_standard(stdid):
     """
     Deletes a service standard by its ID.
     """
-    standard = ServiceStandard.query.get_or_404(stdid)
-    db.session.delete(standard)
-    db.session.commit()
-    return redirect(url_for('views.set_servicestandards'))
+    standard = db_get_by_pk(ServiceStandard, stdid, operation_name="delete_standard.lookup")
+    if not standard:
+        abort(404)
+
+    sid = (getattr(standard, "sid", "") or "").strip()
+    which = request.args.get("which", "").strip()
+    if not which:
+        which = "CS Standards" if sid.upper() == "CS" else "SP Standards"
+
+    if sid and which == "SP Standards":
+        session_contract = session.get('sessionContract', {})
+        if not session_contract.get("sid"):
+            session_contract["sid"] = sid
+        if not session_contract.get("serviceid"):
+            session_contract["serviceid"] = sid
+        session['sessionContract'] = session_contract
+
+    db_delete(standard)
+    if not db_commit("delete_standard.commit"):
+        flash("Failed to delete the service standard due to a database error.", "error")
+
+    return redirect(url_for('views.set_servicestandards', which=which))
 
 
 @views_bp.route('/servicearrangements', methods=['GET', 'POST'])
@@ -255,10 +293,14 @@ def manage_servicearrangements():
     if request.method == 'POST':
         # For each day, get or create, then update from form (or sensible defaults for new rows)
         for day in days:
-            arrangement = (db.session.query(ServiceArrangement)
-                           .filter(func.upper(ServiceArrangement.sid) == func.upper(service_id),
-                                   ServiceArrangement.day == day)
-                           .one_or_none())
+            arrangement_stmt = select(ServiceArrangement).where(
+                func.upper(ServiceArrangement.sid) == func.upper(service_id),
+                ServiceArrangement.day == day,
+            )
+            arrangement = db_query_one_or_none(
+                arrangement_stmt,
+                operation_name=f"manage_servicearrangements.lookup_{day.lower()}",
+            )
 
             is_weekend = day in {'Saturday', 'Sunday'}
 
@@ -285,7 +327,7 @@ def manage_servicearrangements():
 
             if arrangement is None:
                 arrangement = ServiceArrangement(sid=service_id, day=day)
-                db.session.add(arrangement)
+                db_add(arrangement)
 
             # Update from form (fall back to defaults when creating; fall back to existing otherwise)
             arrangement.defaultserviceperiod = request.form.get(f'{day}_default',
@@ -301,17 +343,20 @@ def manage_servicearrangements():
         raw = request.form.get('SpecialConditions')
         specialconditions = raw.strip() if isinstance(raw, str) else ''
 
-        contract_record = db.session.scalar(
-            select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
+        contract_record = db_query_scalar(
+            select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)),
+            operation_name="manage_servicearrangements.lookup_contract",
         )
         if not contract_record:
             contract_record = ServiceContract(sid=service_id, specialconditions=specialconditions)
-            db.session.add(contract_record)
+            db_add(contract_record)
         else:
             contract_record.specialconditions = specialconditions
 
         # Commit all changes once
-        db.session.commit()
+        if not db_commit("manage_servicearrangements.commit"):
+            flash("Failed to save service arrangements due to a database error.", "error")
+            return redirect(url_for('views.manage_servicearrangements'))
 
         # Persist to session for later exports
         session['specialConditions'] = specialconditions
@@ -323,8 +368,9 @@ def manage_servicearrangements():
         (row.get('day') if isinstance(row, dict) else row.day): row
         for row in arr_list
     }
-    contract_record = db.session.scalar(
-        select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id))
+    contract_record = db_query_scalar(
+        select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)),
+        operation_name="manage_servicearrangements.load_contract",
     )
     if contract_record:
         contract['specialconditions'] = contract_record.specialconditions or ''
@@ -409,7 +455,10 @@ def download_client_contract():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
         
-    contract_record = db.session.scalar(select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(sid)))
+    contract_record = db_query_scalar(
+        select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(sid)),
+        operation_name="download_client_contract.lookup_contract",
+    )
     special_conditions = contract_record.specialconditions if contract_record else ''
     context = contract_record.context if contract_record else ''
 
@@ -551,7 +600,10 @@ def download_client_renewal():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
         
-    contract_record = db.session.scalar(select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(sid)))
+    contract_record = db_query_scalar(
+        select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(sid)),
+        operation_name="download_client_renewal.lookup_contract",
+    )
     special_conditions = contract_record.specialconditions if contract_record else ''
     context = contract_record.context if contract_record else ''
     
@@ -1309,7 +1361,10 @@ def download_sp_contract():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    contract_record = db.session.scalar(select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)))
+    contract_record = db_query_scalar(
+        select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)),
+        operation_name="download_sp_contract.lookup_contract",
+    )
     special_conditions = contract_record.specialconditions if contract_record else ''
     context = contract_record.context if contract_record else ''
 
@@ -1461,7 +1516,10 @@ def download_sp_renewal():
     f_agreement_date = datetime.strptime(agreement_date, "%Y-%m-%d").date()
     f_agreement_date = f_agreement_date.strftime("%d/%m/%Y")
 
-    contract_record = db.session.scalar(select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)))
+    contract_record = db_query_scalar(
+        select(ServiceContract).where(func.upper(ServiceContract.sid) == func.upper(service_id)),
+        operation_name="download_sp_renewal.lookup_contract",
+    )
     special_conditions = contract_record.specialconditions if contract_record else ''
     context = contract_record.context if contract_record else ''
 
