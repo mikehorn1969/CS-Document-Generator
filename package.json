@@ -1,0 +1,25 @@
+{
+  "name": "cs-document-generator",
+  "version": "1.0.0",
+  "description": "CS Document Generator (DG) is one component of the business process automation solution for Change Specialists.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikehorn1969/CS-Document-Generator.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mikehorn1969/CS-Document-Generator/issues"
+  },
+  "homepage": "https://github.com/mikehorn1969/CS-Document-Generator#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0"
+  }
+}

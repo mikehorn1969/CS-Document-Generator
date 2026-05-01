@@ -19,3 +19,11 @@ samples/
 federated-cred.json
 SETUP_FEDERATED_IDENTITY.md
 *.PublishSettings
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
