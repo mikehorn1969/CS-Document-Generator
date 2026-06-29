@@ -4,7 +4,7 @@
 *.xlsx
 *.docx
 colleague7.cfg
-launch.json
+launch.json 
 **/__pycache__
 .pytest_cache
 sandbox.py

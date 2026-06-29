@@ -24,50 +24,34 @@ db_engine = None  # Store the engine globally
 
 
 def initialize_database_connection(app=None):
-    """Attempt database connection and update app config/status flags."""
+    """Fast startup probe; falls back to background thread so gunicorn starts quickly."""
     global db_connected, db_error, db_waking, db_engine, app_instance
 
     target_app = app or app_instance
 
     try:
-        engine = build_engine()
+        # Short timeout so startup is never blocked for more than a few seconds.
+        # Azure serverless returns 40613 immediately; truly unreachable hosts time out fast.
+        engine = build_engine(timeout=5)
         if engine:
-            # build_engine already validates connectivity; store URI for Flask-SQLAlchemy.
             if target_app:
                 target_app.config['SQLALCHEMY_DATABASE_URI'] = str(engine.url)
             db_engine = engine
-
             with db_lock:
                 db_connected = True
                 db_error = None
                 db_waking = False
-
-            logging.info("Database connected successfully")
+            logging.info("Database connected successfully on startup")
             return True
-
     except Exception as e:
         error_str = str(e)
-        # Check if it's a serverless database waking up (error 40613 OR timeout errors)
-        if '40613' in error_str or '08001' in error_str or 'timeout' in error_str.lower():
-            logging.info("Database is paused/waking up - will retry in background")
-            with db_lock:
-                db_connected = False
-                db_error = None
-                db_waking = True
-            # Start background thread to keep trying
-            threading.Thread(target=connect_database_background, daemon=True).start()
-        else:
-            # Permanent error
-            logging.error(f"Database connection failed: {e}")
-            with db_lock:
-                db_connected = False
-                db_error = error_str
-                db_waking = False
+        logging.info(f"Startup probe failed ({error_str[:80]}) — starting background retry")
+        with db_lock:
+            db_connected = False
+            db_error = None
+            db_waking = '40613' in error_str or '08001' in error_str or 'timeout' in error_str.lower()
 
-    """ # Set dummy URI to prevent SQLAlchemy errors when DB is not ready.  LET THE CODE HANDLE THIS    
-    if target_app:
-        target_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:' """
-
+    threading.Thread(target=connect_database_background, daemon=True).start()
     return False
 
 # Initialise the app
@@ -237,7 +221,7 @@ def connect_database_background():
         db_waking = False
 
 
-def build_engine():
+def build_engine(timeout=120):
     from urllib.parse import quote_plus
     
     # Debug: Check available drivers
@@ -283,8 +267,8 @@ def build_engine():
         f"Pwd={sql_password};"
         "Encrypt=yes;"
         "TrustServerCertificate=no;"
-        "Connection Timeout=120;"  # Increased to 2 minutes for serverless wake-up
-        "Login Timeout=120;"        # Increased to 2 minutes for serverless wake-up
+        f"Connection Timeout={timeout};"
+        f"Login Timeout={timeout};"
     )
 
     safe_odbc_params = odbc_params.replace(f"Pwd={sql_password};", "Pwd=****;")
@@ -299,7 +283,7 @@ def build_engine():
         pool_size=5,
         max_overflow=10,
         connect_args={
-            "timeout": 120,  # DBAPI timeout also increased
+            "timeout": timeout,
         }
     )
 
