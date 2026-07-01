@@ -32,7 +32,7 @@ def initialize_database_connection(app=None):
     try:
         # Short timeout so startup is never blocked for more than a few seconds.
         # Azure serverless returns 40613 immediately; truly unreachable hosts time out fast.
-        engine = build_engine(timeout=5)
+        engine = build_engine(timeout=15)
         if engine:
             if target_app:
                 target_app.config['SQLALCHEMY_DATABASE_URI'] = str(engine.url)
@@ -168,25 +168,16 @@ def connect_database_background():
                 with engine.connect() as conn:
                     conn.execute(text("SELECT 1"))
                 
-                # Update the app configuration with the real database URI
+                # Inject the real engine into Flask-SQLAlchemy's state.
+                # Updating config + calling dispose() only drains the pool;
+                # the engine object (and its placeholder URI) persists.
+                # Directly replacing engines[None] is the correct swap in FSA 3.x.
                 if app_instance:
                     with app_instance.app_context():
-                        # Dispose temporary SQLite engine completely
-                        if db.engine:
-                            db.engine.dispose()
-                        
-                        # Update config
-                        app_instance.config['SQLALCHEMY_DATABASE_URI'] = str(engine.url)
-                        db_engine = engine
-                        
-                        # Force SQLAlchemy to use the new engine by replacing it
                         db.session.remove()
-                        db.get_engine().dispose()
-                        
-                        # Test with actual query using the NEW engine directly
-                        with engine.connect() as test_conn:
-                            result = test_conn.execute(text("SELECT COUNT(*) FROM dbo.ServiceStandard"))
-                            logging.info(f"Successfully connected to SQL Server with {result.scalar()} standards")
+                        app_instance.extensions["sqlalchemy"].engines[None] = engine
+                        db_engine = engine
+                        logging.info("Flask-SQLAlchemy engine replaced with real connection")
                 
                 with db_lock:
                     db_connected = True
